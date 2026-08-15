@@ -37,3 +37,5 @@ button:disabled{opacity:.55;cursor:not-allowed}
 
 .tutor-thinking{display:flex;align-items:center;gap:8px;opacity:.85}
 .ask button:disabled,.chips button:disabled{opacity:.55;cursor:not-allowed}
+
+.material-upload-card{margin-bottom:18px}.material-upload-form{display:grid;grid-template-columns:minmax(180px,1fr) minmax(200px,1.2fr) auto;gap:12px;align-items:center;margin-top:16px}.material-upload-form>input{width:100%;min-height:44px}.file-picker{min-height:44px;border:1px dashed rgba(255,255,255,.2);border-radius:12px;display:flex;align-items:center;gap:9px;padding:0 14px;cursor:pointer;overflow:hidden}.file-picker span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.file-picker input{display:none}.material-upload-status{margin-top:12px;padding:11px 13px;border-radius:10px;font-size:14px}.material-upload-status.success{background:#10372d;border:1px solid #2d7b62;color:#9ff0d0}.material-upload-status.error{background:#3d1822;border:1px solid #7d2a3f;color:#ffb0c2}@media(max-width:800px){.material-upload-form{grid-template-columns:1fr}}

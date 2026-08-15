@@ -129,11 +129,36 @@ function StudentAnalytics(){return <><PageTitle title="Analytics" text="Your lea
 function Achievements(){return <><PageTitle title="Achievements" text="Streaks, XP and milestones designed to keep momentum high."/><div className="achievement-grid">{[['🔥','12 Day Streak','Study 12 days in a row','Unlocked'],['🏆','Quiz Master','Score 90%+ on 3 quizzes','2 / 3'],['🚀','Fast Starter','Complete your first module','Unlocked'],['🧠','DNA Specialist','Reach 85% mastery in DNA','63%'],['⭐','Top 10%','Reach top 10% of cohort','18%']].map(a=><Card key={a[1]} className="achievement"><div className="emoji">{a[0]}</div><b>{a[1]}</b><p>{a[2]}</p><Badge type={a[3]==='Unlocked'?'green':'blue'}>{a[3]}</Badge></Card>)}</div></>}
 
 function TeacherDashboard(){
+  const [materialTitle,setMaterialTitle]=useState('')
+  const [materialFile,setMaterialFile]=useState(null)
+  const [uploading,setUploading]=useState(false)
+  const [uploadStatus,setUploadStatus]=useState(null)
+
+  async function uploadMaterial(e){
+    e.preventDefault()
+    if(!materialFile) return
+    setUploading(true); setUploadStatus(null)
+    try{
+      const form=new FormData()
+      form.append('file',materialFile)
+      form.append('title',materialTitle.trim() || materialFile.name.replace(/\.pdf$/i,''))
+      form.append('subject','Biology')
+      const res=await fetch('https://tag811.app.n8n.cloud/webhook/courseai-upload-material',{method:'POST',body:form})
+      const result=await res.json().catch(()=>({}))
+      if(!res.ok || result.success===false) throw new Error(result.message || `Upload returned ${res.status}`)
+      setUploadStatus({type:'success',message:'Course material uploaded. AI Tutor can now use it.'})
+      setMaterialTitle(''); setMaterialFile(null); e.target.reset()
+    }catch(err){
+      console.error(err)
+      setUploadStatus({type:'error',message:'Upload failed. Please try again.'})
+    }finally{ setUploading(false) }
+  }
+
   const [action,setAction]=useState(null)
   const riskStudents=students.filter(s=>s.risk>=60).sort((a,b)=>b.risk-a.risk)
   function runAction(student,type){setAction({student,type})}
   return <>
-    <section className="hero teacher-hero"><div><div className="eyebrow"><Brain size={16}/> AI teacher command center</div><h1>Biology Mastery 2027</h1><p>Prioritize who needs help, why they are struggling, and what action to take next.</p></div><div className="hero-badge"><Bell/><div><b>{riskStudents.length} priority students</b><span>AI risk queue</span></div></div></section>
+    <section className="hero teacher-hero"><div><div className="eyebrow"><Brain size={16}/><Card className="material-upload-card"><SectionHead eyebrow="Course Knowledge" title="Upload Course Material" icon={Upload}/><p className="muted">Upload a PDF and CourseAI will extract its text through n8n, save it to Supabase, and make it available to the AI Tutor.</p><form className="material-upload-form" onSubmit={uploadMaterial}><input type="text" value={materialTitle} onChange={e=>setMaterialTitle(e.target.value)} placeholder="Material title (optional)" disabled={uploading}/><label className="file-picker"><Upload size={18}/><span>{materialFile?materialFile.name:'Choose PDF'}</span><input type="file" accept="application/pdf,.pdf" onChange={e=>setMaterialFile(e.target.files?.[0]||null)} disabled={uploading}/></label><button className="primary" disabled={uploading||!materialFile}><Upload size={17}/> {uploading?'Uploading...':'Upload material'}</button></form>{uploadStatus&&<div className={'material-upload-status '+uploadStatus.type}>{uploadStatus.message}</div>}</Card> AI teacher command center</div><h1>Biology Mastery 2027</h1><p>Prioritize who needs help, why they are struggling, and what action to take next.</p></div><div className="hero-badge"><Bell/><div><b>{riskStudents.length} priority students</b><span>AI risk queue</span></div></div></section>
     {action&&<TeacherActionModal student={action.student} type={action.type} onClose={()=>setAction(null)}/>}
     <div className="stats"><Stat icon={Users} value="128" label="Students" sub="+14 this month"/><Stat icon={BarChart3} value="74%" label="Avg. progress" sub="+6%"/><Stat icon={Target} value="81%" label="Avg. quiz score" sub="+3%"/><Stat icon={Bell} value="9" label="Need attention" sub="3 high priority"/></div>
     <div className="grid teacher-main-grid">
