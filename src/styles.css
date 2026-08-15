@@ -49,3 +49,45 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .danger{border:1px solid #6e2c3b;background:#35151e;color:#ff9db1;border-radius:10px;padding:9px 12px;font-weight:700}
 .empty-state{padding:16px;border:1px dashed #28415f;border-radius:12px;color:#7f93af;text-align:center}
 @media(max-width:850px){.material-row{align-items:flex-start;flex-wrap:wrap}.material-row .grow{min-width:60%}}
+.revision-plan-card{
+  margin-top:18px;
+}
+
+.revision-plan-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin:12px 0 16px;
+}
+
+.revision-plan-head span,
+.revision-plan-head b{
+  display:block;
+}
+
+.revision-plan-head span{
+  font-size:12px;
+  color:#7f93af;
+  margin-bottom:4px;
+}
+
+.revision-plan-text{
+  white-space:pre-wrap;
+  font-family:inherit;
+  line-height:1.7;
+  background:#091421;
+  border:1px solid #203650;
+  border-radius:12px;
+  padding:16px;
+  margin:0;
+  color:#dfeaff;
+}
+
+.revision-plan-actions{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  margin-top:14px;
+  flex-wrap:wrap;
+}

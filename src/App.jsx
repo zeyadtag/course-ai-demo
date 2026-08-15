@@ -213,12 +213,76 @@ function Progress({value}){return <div className="progress"><i style={{width:`${
 function Badge({children,type=''}){return <span className={'badge '+type}>{children}</span>}
 
 function StudentDashboard({data,setPage}){
+  const [revisionPlan,setRevisionPlan]=useState(null)
+
+  useEffect(()=>{
+    loadRevisionPlan()
+  },[])
+
+  async function loadRevisionPlan(){
+    const {data:plan,error}=await supabase
+      .from('automation_runs')
+      .select('id,workflow_key,student_name,weak_topic,generated_text,status,created_at')
+      .eq('workflow_key','low_score_revision')
+      .eq('student_name','Omar Mohamed')
+      .eq('status','prepared')
+      .order('created_at',{ascending:false})
+      .limit(1)
+      .maybeSingle()
+
+    if(error){
+      console.error(error)
+      return
+    }
+
+    setRevisionPlan(plan||null)
+  }
+
   return <>
     <section className="hero"><div><div className="eyebrow"><Sparkles size={16}/> Personalized learning dashboard</div><h1>Welcome back, {data.student.full_name.split(' ')[0]} 👋</h1><p>Your AI study plan adapts to your weak topics and recent quiz results.</p></div><div className="hero-badge"><Flame/><div><b>{data.student.streak} days</b><span>Study streak</span></div></div></section>
     <div className="stats"><Stat icon={Target} value="68%" label="Course progress" sub="+8% this week"/><Stat icon={Trophy} value={data.student.points} label="XP points" sub="Top 18%"/><Stat icon={CheckCircle2} value="86%" label="Quiz average" sub="+4% vs last week"/><Stat icon={Clock3} value="3h 10m" label="This week" sub="Goal: 4h"/></div>
     <div className="grid two"><Card><SectionHead eyebrow="Continue learning" title={data.course.title} icon={BookOpen}/><Progress value={68}/><p className="muted">68% complete · 3 lessons in this demo</p><div className="lesson-list">{data.lessons.map((l,i)=><button className="lesson" key={l.id} onClick={()=>setPage('courses')}><div className="lesson-num">{i+1}</div><div className="grow"><b>{l.title}</b><span>{l.summary}</span></div><span className="duration">{l.duration_minutes} min</span><PlayCircle size={20}/></button>)}</div></Card>
     <Card><SectionHead eyebrow="AI generated" title="Today's study plan" icon={ListChecks}/>{data.plan.map((t,i)=><div className="task" key={i}><div><b>{t.task}</b><span>{t.day} · {t.minutes} min</span></div><CheckCircle2 size={20}/></div>)}</Card></div>
     <div className="grid three"><Card><SectionHead eyebrow="Weak topic" title="DNA transcription" icon={CircleAlert}/><p className="muted">You missed 3 of the last 5 questions on transcription.</p><button className="primary" onClick={()=>setPage('tutor')}>Ask AI Tutor</button></Card><Card><SectionHead eyebrow="Next milestone" title="Quiz Master" icon={Trophy}/><p className="muted">Score 90%+ in two more quizzes to unlock 500 XP.</p><Progress value={67}/></Card><Card><SectionHead eyebrow="Upcoming" title="Weekly biology challenge" icon={CalendarDays}/><p className="muted">Saturday · 8:00 PM · 20 questions</p><Badge type="blue">Starts in 2 days</Badge></Card></div>
+
+    {revisionPlan&&
+      <Card className="revision-plan-card">
+        <SectionHead
+          eyebrow="AI intervention"
+          title="Your new revision plan"
+          icon={Brain}
+        />
+
+        <div className="revision-plan-head">
+          <div>
+            <span>Weak topic</span>
+            <b>{revisionPlan.weak_topic}</b>
+          </div>
+
+          <Badge type="green">
+            AI generated
+          </Badge>
+        </div>
+
+        <pre className="revision-plan-text">
+          {revisionPlan.generated_text}
+        </pre>
+
+        <div className="revision-plan-actions">
+          <button
+            className="primary"
+            onClick={()=>setPage('tutor')}
+          >
+            <Brain size={17}/>
+            Ask AI Tutor about this topic
+          </button>
+
+          <span className="muted">
+            Generated after your latest low-score quiz.
+          </span>
+        </div>
+      </Card>
+    }
   </>
 }
 
