@@ -506,7 +506,7 @@ function StudentDashboard({data,setPage,setTutorPrompt}){
               setTutorPrompt(
                 'Give me a focused 15-minute review of '+
                 inactiveFollowup.weak_topic+
-                '. Use ONLY information explicitly supported by my uploaded course material. Do not add, infer, expand, or supplement any detail from general knowledge. If the uploaded course material does not cover a point, say: "This point is not covered in the uploaded course material." Keep the terminology and level of detail consistent with the course material.'
+                '. Use ONLY information explicitly supported by my uploaded course material. Do not add, infer, expand, or supplement any detail from general knowledge. If the uploaded course material does not cover a point explicitly asked by the student, say: "This point is not covered in the uploaded course material." Do not introduce, suggest, or list topics that are absent from the uploaded course material. Review only topics and subtopics actually present in the retrieved course content. Keep the terminology, scope, and level of detail consistent with the course material.'
               )
               setPage('tutor')
             }}
