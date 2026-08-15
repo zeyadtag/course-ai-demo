@@ -60,8 +60,67 @@ function StudentDashboard({data,setPage}){
 
 function Courses({data}){return <><PageTitle title="Courses" text="All lessons, progress and learning resources in one place."/><div className="course-banner"><div><Badge type="blue">{data.course.subject}</Badge><h2>{data.course.title}</h2><p>Instructor: {data.course.instructor_name}</p><Progress value={68}/></div><div className="course-score"><b>68%</b><span>completed</span></div></div><div className="lesson-list large">{data.lessons.map((l,i)=><Card className="lesson-card" key={l.id}><div className="lesson-num">{i+1}</div><div className="grow"><b>{l.title}</b><p>{l.summary}</p><span><Clock3 size={14}/> {l.duration_minutes} minutes</span></div><button className="primary"><PlayCircle size={17}/> Start lesson</button></Card>)}</div></>}
 
-function Tutor(){const [messages,setMessages]=useState([{role:'ai',text:'Hi Omar! Ask me anything from your Biology course. I can explain concepts, quiz you, or simplify a difficult topic.'}]);const [q,setQ]=useState('');function send(e){e.preventDefault();if(!q.trim())return;const a=q.toLowerCase().includes('mitochond')?'Mitochondria convert energy from nutrients into ATP through cellular respiration. In exams, remember: inner membrane → electron transport chain → ATP production.':'Here is the exam-focused version: break the concept into definition, mechanism, and one clinical/example link. For this demo, I use the current course context and your weak-topic profile.';setMessages(m=>[...m,{role:'user',text:q},{role:'ai',text:a}]);setQ('')}
-return <><PageTitle title="AI Tutor" text="Context-aware help based on the current course and your learning gaps."/><Card className="tutor-shell"><div className="tutor-top"><div className="avatar"><Brain/></div><div><b>CourseAI Tutor</b><span>Biology Mastery 2027 · Online</span></div><Badge type="green">Course-aware</Badge></div><div className="messages">{messages.map((m,i)=><div key={i} className={'message '+m.role}>{m.text}</div>)}</div><form className="ask" onSubmit={send}><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Ask a biology question..."/><button><Send size={17}/> Send</button></form><div className="chips">{['Explain transcription simply','Quiz me on cells','Make a 20-min revision plan'].map(x=><button key={x} onClick={()=>setQ(x)}>{x}</button>)}</div></Card></>}
+function Tutor(){
+  const [messages,setMessages]=useState([
+    {role:'ai',text:'Hi Omar! Ask me anything from your Biology course. I can explain concepts, quiz you, or simplify a difficult topic.'}
+  ])
+  const [q,setQ]=useState('')
+  const [loading,setLoading]=useState(false)
+
+  async function send(e){
+    e.preventDefault()
+    const question=q.trim()
+    if(!question || loading) return
+
+    setMessages(m=>[...m,{role:'user',text:question}])
+    setQ('')
+    setLoading(true)
+
+    try{
+      const res=await fetch('https://tag811.app.n8n.cloud/webhook/courseai-ai-tutor',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({question})
+      })
+      if(!res.ok) throw new Error(`AI Tutor webhook returned ${res.status}`)
+      const data=await res.json()
+      const answer=data.answer || 'The AI Tutor returned an empty response.'
+      setMessages(m=>[...m,{role:'ai',text:answer}])
+    }catch(err){
+      console.error(err)
+      setMessages(m=>[...m,{role:'ai',text:'I could not reach the AI Tutor right now. Please try again.'}])
+    }finally{
+      setLoading(false)
+    }
+  }
+
+  return <>
+    <PageTitle title="AI Tutor" text="Ask a real question and get a live Gemini response through n8n."/>
+    <Card className="tutor-shell">
+      <div className="tutor-top">
+        <div className="avatar"><Brain/></div>
+        <div><b>CourseAI Tutor</b><span>Biology Mastery 2027 · Gemini via n8n</span></div>
+        <Badge type="green">Live AI</Badge>
+      </div>
+
+      <div className="messages">
+        {messages.map((m,i)=><div key={i} className={'message '+m.role}>{m.text}</div>)}
+        {loading&&<div className="message ai tutor-thinking"><Sparkles size={16}/> Thinking...</div>}
+      </div>
+
+      <form className="ask" onSubmit={send}>
+        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Ask a biology question..." disabled={loading}/>
+        <button disabled={loading || !q.trim()}><Send size={17}/> {loading?'Thinking...':'Send'}</button>
+      </form>
+
+      <div className="chips">
+        {['Explain transcription simply','Quiz me on cells','Make a 20-min revision plan'].map(x=>
+          <button key={x} onClick={()=>setQ(x)} disabled={loading}>{x}</button>
+        )}
+      </div>
+    </Card>
+  </>
+}
 
 function Quizzes(){const [started,setStarted]=useState(false);const [answer,setAnswer]=useState('');const [result,setResult]=useState(null);return <><PageTitle title="Quizzes" text="Adaptive checkpoints that feed your weak-topic analysis."/><div className="grid two"><Card><SectionHead eyebrow="Recommended" title="DNA Challenge" icon={Target}/><p className="muted">10 questions · Hard · AI recommends this because DNA is your weakest topic.</p>{!started?<button className="primary" onClick={()=>setStarted(true)}>Start adaptive quiz</button>:<><p className="question">Which organelle is primarily responsible for ATP production?</p>{['Nucleus','Mitochondrion','Ribosome','Golgi apparatus'].map(o=><label className={'option '+(answer===o?'selected':'')} key={o}><input type="radio" name="q" value={o} onChange={e=>setAnswer(e.target.value)}/>{o}</label>)}<button className="primary" onClick={()=>setResult(answer==='Mitochondrion')}>Check answer</button>{result!==null&&<div className={'feedback '+(result?'good':'bad')}>{result?'Correct. Mitochondria generate most cellular ATP.':'Try again. Focus on cellular respiration.'}</div>}</>}</Card><Card><SectionHead eyebrow="Performance" title="Recent attempts" icon={BarChart3}/>{[['Cell Biology Checkpoint',92,'Excellent'],['DNA Basics',71,'Needs review'],['Human Physiology',85,'Good']].map(r=><div className="result-row" key={r[0]}><div><b>{r[0]}</b><span>{r[2]}</span></div><strong>{r[1]}%</strong></div>)}</Card></div></>}
 

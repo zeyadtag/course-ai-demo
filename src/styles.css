@@ -34,3 +34,6 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .automation-toast.success{background:#10372d;border:1px solid #2d7b62;color:#9ff0d0}
 .automation-toast.error{background:#3d1822;border:1px solid #7d2a3f;color:#ffb0c2}
 @media(max-width:700px){.automation-toast{left:12px;right:12px;top:78px;max-width:none}}
+
+.tutor-thinking{display:flex;align-items:center;gap:8px;opacity:.85}
+.ask button:disabled,.chips button:disabled{opacity:.55;cursor:not-allowed}
