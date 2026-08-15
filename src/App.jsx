@@ -206,6 +206,7 @@ async function fetchLiveStudents(){
       status,
 
       last,
+      daysInactive,
 
       weak:
         weakTopics[0] ||
@@ -226,6 +227,99 @@ async function fetchLiveStudents(){
   }).sort(
     (a,b)=>b.risk-a.risk
   )
+}
+
+async function runInactiveStudentAutomations(students){
+
+  const inactiveStudents=
+    students.filter(
+      student =>
+        student.id &&
+        student.daysInactive >= 5
+    )
+
+  for(const student of inactiveStudents){
+
+    try{
+
+      const {data:existing,error:readError}=
+        await supabase
+          .from('inactive_student_alerts')
+          .select('id')
+          .eq('student_id',student.id)
+          .limit(1)
+          .maybeSingle()
+
+      if(readError){
+        console.error(
+          'Inactive alert check failed',
+          readError
+        )
+        continue
+      }
+
+      if(existing){
+        continue
+      }
+
+      const response=
+        await fetch(
+          'https://tag811.app.n8n.cloud/webhook/courseai-inactive-student',
+          {
+            method:'POST',
+            headers:{
+              'Content-Type':'application/json'
+            },
+            body:JSON.stringify({
+              student_name:student.name,
+              days_inactive:student.daysInactive,
+              weak_topic:student.weak
+            })
+          }
+        )
+
+      if(!response.ok){
+        throw new Error(
+          'Inactive webhook returned ' +
+          response.status
+        )
+      }
+
+      const {error:insertError}=
+        await supabase
+          .from('inactive_student_alerts')
+          .insert({
+            student_id:student.id,
+            student_name:student.name,
+            days_inactive:student.daysInactive,
+            status:'sent'
+          })
+
+      if(insertError){
+        console.error(
+          'Could not save inactive alert',
+          insertError
+        )
+        continue
+      }
+
+      console.log(
+        'Inactive automation triggered:',
+        student.name
+      )
+
+    }catch(error){
+
+      console.error(
+        'Inactive student automation failed:',
+        student.name,
+        error
+      )
+
+    }
+
+  }
+
 }
 
 const nav = [
@@ -876,6 +970,8 @@ function TeacherDashboard(){
 
           setStudentDataLive(true)
 
+          runInactiveStudentAutomations(rows)
+
         }
 
       })
@@ -1128,6 +1224,8 @@ function TeacherStudents(){
           setRows(data)
 
           setLive(true)
+
+          runInactiveStudentAutomations(data)
 
         }
 
