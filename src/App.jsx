@@ -126,7 +126,83 @@ function StudentTableCustom({rows}){
 }
 function TeacherContent({data}){return <><PageTitle title="Content" text="Course modules, lessons, quizzes and resources."/><div className="toolbar"><span>{data.lessons.length} lessons</span><button className="primary"><BookOpen size={17}/> New lesson</button></div><div className="lesson-list large">{data.lessons.map((l,i)=><Card className="lesson-card" key={l.id}><div className="lesson-num">{i+1}</div><div className="grow"><b>{l.title}</b><p>{l.summary}</p><span><Clock3 size={14}/> {l.duration_minutes} min · Published</span></div><Badge type="green">Live</Badge><button className="icon-btn"><Settings2/></button></Card>)}</div></>}
 function TeacherAnalytics(){return <><PageTitle title="Analytics" text="Cohort performance and AI-generated teaching insights."/><div className="stats"><Stat icon={Users} value="128" label="Students"/><Stat icon={Target} value="81%" label="Avg score"/><Stat icon={Clock3} value="4.2h" label="Avg weekly study"/><Stat icon={Flame} value="67%" label="Weekly active"/></div><div className="grid two"><Card><SectionHead eyebrow="Performance" title="Topic mastery" icon={BarChart3}/>{[['Cells',88],['DNA',63],['Physiology',79],['Genetics',71]].map(([n,v])=><div className="bar-row" key={n}><span>{n}</span><Progress value={v}/><b>{v}%</b></div>)}</Card><Card><SectionHead eyebrow="AI commentary" title="This week" icon={Brain}/><TeacherInsights/></Card></div></>}
-function Automation(){const [toggles,setToggles]=useState({risk:true,inactive:true,quiz:true,weekly:true});const items=[['risk','At-risk student alert','Notify teacher when engagement or scores drop.',Bell],['inactive','Inactive student follow-up','Prepare a reminder after 5 days of inactivity.',MessageCircle],['quiz','Low-score revision plan','Generate a revision plan when score is below 65%.',Brain],['weekly','Weekly teacher report','Summarize growth, weak topics and students needing attention.',FileText]];return <><PageTitle title="Automation Center" text="Demo automation rules ready to be connected to n8n / WhatsApp / email."/><Card><div className="automation-list">{items.map(([k,t,d,Icon])=><div className="automation-row" key={k}><div className="iconbox"><Icon/></div><div className="grow"><b>{t}</b><span>{d}</span></div><button className={'toggle '+(toggles[k]?'on':'')} onClick={()=>setToggles(x=>({...x,[k]:!x[k]}))}><i/></button></div>)}</div></Card><div className="grid two"><Card><SectionHead eyebrow="Demo workflow" title="At-risk follow-up" icon={Zap}/><div className="flow"><span>Student inactive</span><ChevronRight/><span>AI risk check</span><ChevronRight/><span>Teacher alert</span></div></Card><Card><SectionHead eyebrow="Integration status" title="Ready for automation layer" icon={ShieldCheck}/><p className="muted">Database events and demo rules are structured. n8n can be connected later without changing the UI architecture.</p><Badge type="blue">Demo-ready</Badge></Card></div></>}
+function Automation(){
+  const [toggles,setToggles]=useState({risk:true,inactive:true,quiz:true,weekly:true})
+  const [log,setLog]=useState([
+    {time:'2 min ago',title:'At-risk scan completed',detail:'3 priority students identified',status:'Success'},
+    {time:'18 min ago',title:'Revision plan prepared',detail:'Youssef Karim · DNA & protein synthesis',status:'Success'},
+    {time:'1h ago',title:'Inactive student reminder queued',detail:'Adham Tarek · 8 days inactive',status:'Queued'},
+    {time:'Yesterday',title:'Weekly teacher report generated',detail:'128 students analyzed',status:'Success'}
+  ])
+  const [running,setRunning]=useState('')
+  const items=[
+    ['risk','At-risk student alert','Detect low engagement or declining scores.',Bell,'3 students','2 min ago'],
+    ['inactive','Inactive student follow-up','Prepare a reminder after 5 days of inactivity.',MessageCircle,'5 students','18 min ago'],
+    ['quiz','Low-score revision plan','Generate a revision plan when score is below 65%.',Brain,'12 students','1h ago'],
+    ['weekly','Weekly teacher report','Summarize weak topics, growth and intervention needs.',FileText,'128 students','Yesterday']
+  ]
+  function runNow(k,title){
+    setRunning(k)
+    setTimeout(()=>{
+      setRunning('')
+      setLog(x=>[{time:'Just now',title:`${title} ran manually`,detail:'Demo workflow completed successfully',status:'Success'},...x])
+    },900)
+  }
+  return <>
+    <PageTitle title="Automation Center" text="Monitor workflows, trigger demo runs and review recent activity."/>
+    <div className="stats">
+      <Stat icon={Zap} value="4" label="Active workflows" sub="All systems healthy"/>
+      <Stat icon={Users} value="17" label="Students touched" sub="Last 24 hours"/>
+      <Stat icon={Send} value="9" label="Actions prepared" sub="Awaiting teacher review"/>
+      <Stat icon={ShieldCheck} value="99.8%" label="Automation health" sub="Demo environment"/>
+    </div>
+
+    <div className="automation-grid">
+      {items.map(([k,t,d,Icon,affected,last])=><Card key={k} className="workflow-card">
+        <div className="workflow-head">
+          <div className="iconbox"><Icon/></div>
+          <button className={'toggle '+(toggles[k]?'on':'')} onClick={()=>setToggles(x=>({...x,[k]:!x[k]}))}><i/></button>
+        </div>
+        <b className="workflow-title">{t}</b>
+        <p className="muted">{d}</p>
+        <div className="workflow-meta">
+          <span><Users size={14}/>{affected}</span>
+          <span><Clock3 size={14}/>{last}</span>
+        </div>
+        <div className="workflow-footer">
+          <Badge type={toggles[k]?'green':'blue'}>{toggles[k]?'Active':'Paused'}</Badge>
+          <button className="secondary small" disabled={running===k} onClick={()=>runNow(k,t)}>
+            {running===k?'Running...':'Run demo'}
+          </button>
+        </div>
+      </Card>)}
+    </div>
+
+    <div className="grid two">
+      <Card>
+        <SectionHead eyebrow="Live activity" title="Automation log" icon={Zap}/>
+        <div className="activity-log">
+          {log.map((x,i)=><div className="activity-item" key={i}>
+            <div className={'activity-dot '+(x.status==='Success'?'success':'queued')}></div>
+            <div className="grow"><b>{x.title}</b><span>{x.detail}</span></div>
+            <div className="activity-time"><span>{x.time}</span><Badge type={x.status==='Success'?'green':'blue'}>{x.status}</Badge></div>
+          </div>)}
+        </div>
+      </Card>
+      <Card>
+        <SectionHead eyebrow="Workflow preview" title="At-risk follow-up" icon={Brain}/>
+        <div className="flow-vertical">
+          <div><span>1</span><div><b>Student signal detected</b><p>Inactivity, low score or falling progress</p></div></div>
+          <div><span>2</span><div><b>AI risk analysis</b><p>Risk score + weak topic + suggested action</p></div></div>
+          <div><span>3</span><div><b>Teacher review</b><p>Message or study plan prepared for approval</p></div></div>
+          <div><span>4</span><div><b>Delivery layer</b><p>Ready to connect with n8n, WhatsApp or email</p></div></div>
+        </div>
+        <div className="integration-strip"><ShieldCheck size={18}/><div><b>Integration-ready</b><span>UI + data model prepared for n8n webhooks</span></div></div>
+      </Card>
+    </div>
+  </>
+}
+
 function Announcements(){const [text,setText]=useState('');const [sent,setSent]=useState(false);return <><PageTitle title="Announcements" text="Send updates, revision reminders and challenge notices."/><div className="grid two"><Card><SectionHead eyebrow="Compose" title="New announcement" icon={Megaphone}/><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Example: DNA revision session tomorrow at 8 PM..."/><button className="primary" onClick={()=>{if(text.trim())setSent(true)}}><Send size={17}/> Send demo announcement</button>{sent&&<div className="feedback good">Demo announcement queued successfully.</div>}</Card><Card><SectionHead eyebrow="Recent" title="Latest messages" icon={MessageCircle}/>{[['Weekly challenge','Saturday · 8:00 PM'],['DNA revision reminder','Yesterday'],['New lesson published','3 days ago']].map(x=><div className="result-row" key={x[0]}><div><b>{x[0]}</b><span>{x[1]}</span></div><CheckCircle2/></div>)}</Card></div></>}
 function PageTitle({title,text}){return <div className="page-title"><div><h1>{title}</h1><p>{text}</p></div></div>}
 
