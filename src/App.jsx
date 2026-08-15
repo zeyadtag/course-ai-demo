@@ -341,10 +341,34 @@ function StudentDashboard({data,setPage,setTutorPrompt}){
   const [revisionPlan,setRevisionPlan]=useState(null)
   const [revisionSteps,setRevisionSteps]=useState([])
   const [revisionSaving,setRevisionSaving]=useState(false)
+  const [inactiveFollowup,setInactiveFollowup]=useState(null)
 
   useEffect(()=>{
     loadRevisionPlan()
+    loadInactiveFollowup()
   },[])
+
+  async function loadInactiveFollowup(){
+    const {data:followup,error}=await supabase
+      .from('automation_runs')
+      .select('id,student_name,weak_topic,generated_text,status,created_at')
+      .eq('workflow_key','inactive_student_followup')
+      .eq('student_name',data.student.full_name)
+      .eq('status','prepared')
+      .order('created_at',{ascending:false})
+      .limit(1)
+      .maybeSingle()
+
+    if(error){
+      console.error(
+        'Could not load student inactive follow-up',
+        error
+      )
+      return
+    }
+
+    setInactiveFollowup(followup||null)
+  }
 
   async function loadRevisionPlan(){
     const {data:plan,error}=await supabase
@@ -459,6 +483,41 @@ function StudentDashboard({data,setPage,setTutorPrompt}){
 
   return <>
     <section className="hero"><div><div className="eyebrow"><Sparkles size={16}/> Personalized learning dashboard</div><h1>Welcome back, {data.student.full_name.split(' ')[0]} 👋</h1><p>Your AI study plan adapts to your weak topics and recent quiz results.</p></div><div className="hero-badge"><Flame/><div><b>{data.student.streak} days</b><span>Study streak</span></div></div></section>
+    {inactiveFollowup&&
+      <Card className="welcome-back-card">
+        <SectionHead
+          eyebrow="AI follow-up"
+          title="Welcome back — let's continue"
+          icon={Sparkles}
+        />
+
+        <p className="welcome-back-message">
+          {inactiveFollowup.generated_text}
+        </p>
+
+        <div className="welcome-back-actions">
+          <Badge type="blue">
+            Focus: {inactiveFollowup.weak_topic}
+          </Badge>
+
+          <button
+            className="primary"
+            onClick={()=>{
+              setTutorPrompt(
+                'Give me a focused 15-minute review of '+
+                inactiveFollowup.weak_topic+
+                ' based only on my uploaded course material.'
+              )
+              setPage('tutor')
+            }}
+          >
+            <PlayCircle size={17}/>
+            Start 15-min review
+          </button>
+        </div>
+      </Card>
+    }
+
     <div className="stats"><Stat icon={Target} value="68%" label="Course progress" sub="+8% this week"/><Stat icon={Trophy} value={data.student.points} label="XP points" sub="Top 18%"/><Stat icon={CheckCircle2} value="86%" label="Quiz average" sub="+4% vs last week"/><Stat icon={Clock3} value="3h 10m" label="This week" sub="Goal: 4h"/></div>
     <div className="grid two"><Card><SectionHead eyebrow="Continue learning" title={data.course.title} icon={BookOpen}/><Progress value={68}/><p className="muted">68% complete · 3 lessons in this demo</p><div className="lesson-list">{data.lessons.map((l,i)=><button className="lesson" key={l.id} onClick={()=>setPage('courses')}><div className="lesson-num">{i+1}</div><div className="grow"><b>{l.title}</b><span>{l.summary}</span></div><span className="duration">{l.duration_minutes} min</span><PlayCircle size={20}/></button>)}</div></Card>
     <Card><SectionHead eyebrow="AI generated" title="Today's study plan" icon={ListChecks}/>{data.plan.map((t,i)=><div className="task" key={i}><div><b>{t.task}</b><span>{t.day} · {t.minutes} min</span></div><CheckCircle2 size={20}/></div>)}</Card></div>
