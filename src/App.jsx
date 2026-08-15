@@ -235,7 +235,7 @@ async function runAtRiskStudentAutomations(students){
     students.filter(
       student =>
         student.id &&
-        student.risk >= 75
+        student.risk >= 70
     )
 
   for(const student of atRiskStudents){
