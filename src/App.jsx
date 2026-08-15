@@ -231,12 +231,26 @@ async function fetchLiveStudents(){
 
 async function runAtRiskStudentAutomations(students){
 
+  console.log(
+    'V24 at-risk input students:',
+    students.map(s=>({
+      name:s.name,
+      id:s.id,
+      risk:s.risk
+    }))
+  )
+
   const atRiskStudents=
     students.filter(
       student =>
         student.id &&
         student.risk >= 70
     )
+
+  console.log(
+    'V24 matched at-risk students:',
+    atRiskStudents
+  )
 
   for(const student of atRiskStudents){
 
