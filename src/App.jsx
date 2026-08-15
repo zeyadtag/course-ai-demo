@@ -1073,13 +1073,38 @@ function StudentTable({
   return <Card><SectionHead eyebrow="Student intelligence" title={compact?'Student performance':'All students'} icon={Users}/><div className="table-wrap"><table><thead><tr><th>Student</th><th>Progress</th><th>Quiz avg.</th><th>Risk</th><th>Last active</th><th>Status</th><th></th></tr></thead><tbody>{rows.map(s=><tr key={s.name} className="click-row" onClick={()=>setSelected(s)}><td><b>{s.name}</b></td><td>{s.progress}%</td><td>{s.score}%</td><td><span className={'risk-number '+(s.risk>=80?'danger':s.risk>=60?'warn':'safe')}>{s.risk}</span></td><td>{s.last}</td><td><Badge type={s.status==='At risk'?'red':s.status==='Watch'?'blue':'green'}>{s.status}</Badge></td><td><ChevronRight size={18}/></td></tr>)}</tbody></table></div>{selected&&<div className="student-detail"><div className="detail-head"><div><small>STUDENT PROFILE</small><h3>{selected.name}</h3></div><button className="icon-btn" onClick={()=>setSelected(null)}>×</button></div><div className="detail-stats"><div><b>{selected.progress}%</b><span>Progress</span></div><div><b>{selected.score}%</b><span>Quiz avg.</span></div><div><b>{selected.risk}</b><span>Risk score</span></div>
 <div>
   <b>
-    {selected.improvement!==null && selected.improvement!==undefined
+    {selected.previousLowScore!==null &&
+     selected.previousLowScore!==undefined
+      ? selected.previousLowScore+'%'
+      : '—'}
+  </b>
+  <span>Previous score</span>
+</div>
+
+<div>
+  <b>
+    {selected.latestScore!==null &&
+     selected.latestScore!==undefined
+      ? selected.latestScore+'%'
+      : '—'}
+  </b>
+  <span>Latest score</span>
+</div>
+
+<div>
+  <b>
+    {selected.improvement!==null &&
+     selected.improvement!==undefined
       ? '+'+selected.improvement+' pts'
       : '—'}
   </b>
   <span>Recovery</span>
 </div>
-<div><b>{selected.trend}</b><span>Trend</span></div></div><div className="detail-note"><CircleAlert size={17}/><div><b>Why flagged</b><p>{selected.reason}</p></div></div><div className="detail-note"><Brain size={17}/><div><b>Recommended action</b><p>{selected.recommended}</p></div></div></div>}</Card>
+
+<div>
+  <b>{selected.trend}</b>
+  <span>Trend</span>
+</div></div><div className="detail-note"><CircleAlert size={17}/><div><b>Why flagged</b><p>{selected.reason}</p></div></div><div className="detail-note"><Brain size={17}/><div><b>Recommended action</b><p>{selected.recommended}</p></div></div></div>}</Card>
 }
 function TeacherStudents(){
 
