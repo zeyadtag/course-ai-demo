@@ -24,7 +24,7 @@ const fallback = {
   ]
 }
 
-const students = [
+const fallbackStudents = [
   {name:'Omar Mohamed',progress:68,score:86,status:'Active',last:'2h ago',risk:18,trend:'+6%',weak:'DNA transcription',reason:'Healthy engagement',recommended:'Keep current plan'},
   {name:'Sara Ali',progress:82,score:91,status:'Active',last:'35m ago',risk:8,trend:'+9%',weak:'Genetics',reason:'High engagement',recommended:'Advanced quiz'},
   {name:'Youssef Karim',progress:41,score:59,status:'At risk',last:'6d ago',risk:87,trend:'-14%',weak:'DNA & protein synthesis',reason:'6 days inactive · 3 low scores',recommended:'Send reminder + revision plan'},
@@ -32,6 +32,170 @@ const students = [
   {name:'Adham Tarek',progress:37,score:62,status:'At risk',last:'8d ago',risk:92,trend:'-18%',weak:'Cell biology',reason:'8 days inactive · progress stalled',recommended:'Urgent teacher follow-up'},
   {name:'Laila Samir',progress:53,score:66,status:'Watch',last:'3d ago',risk:61,trend:'-7%',weak:'Genetics',reason:'Quiz accuracy declining',recommended:'Targeted 20-min revision'}
 ]
+
+async function fetchLiveStudents(){
+  const [
+    {data:profiles,error:pErr},
+    {data:enrollments,error:eErr},
+    {data:attempts,error:aErr}
+  ] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('id,full_name,role')
+      .eq('role','student'),
+
+    supabase
+      .from('enrollments')
+      .select('student_id,progress,last_activity_at'),
+
+    supabase
+      .from('quiz_attempts')
+      .select('student_id,score,weak_topics,completed_at')
+  ])
+
+  if(pErr || eErr || aErr){
+    throw (pErr || eErr || aErr)
+  }
+
+  const enrollmentMap = new Map(
+    (enrollments || []).map(e => [e.student_id,e])
+  )
+
+  const attemptMap = new Map()
+
+  ;(attempts || []).forEach(a=>{
+    const list = attemptMap.get(a.student_id) || []
+    list.push(a)
+    attemptMap.set(a.student_id,list)
+  })
+
+  return (profiles || []).map(profile=>{
+
+    const enrollment =
+      enrollmentMap.get(profile.id) || {}
+
+    const studentAttempts =
+      attemptMap.get(profile.id) || []
+
+    const averageScore =
+      studentAttempts.length
+        ? Math.round(
+            studentAttempts.reduce(
+              (total,a)=>total + Number(a.score || 0),
+              0
+            ) / studentAttempts.length
+          )
+        : 0
+
+    const weakTopics = [
+      ...new Set(
+        studentAttempts.flatMap(
+          a => a.weak_topics || []
+        )
+      )
+    ].filter(Boolean)
+
+    const lastActivity =
+      enrollment.last_activity_at
+        ? new Date(enrollment.last_activity_at)
+        : null
+
+    const daysInactive =
+      lastActivity
+        ? Math.max(
+            0,
+            Math.floor(
+              (Date.now() - lastActivity.getTime())
+              / 86400000
+            )
+          )
+        : 99
+
+    const progress =
+      Number(enrollment.progress || 0)
+
+    let risk =
+      (100 - progress) * 0.45 +
+      (100 - (averageScore || 70)) * 0.35 +
+      Math.min(daysInactive,10) * 4
+
+    risk = Math.round(
+      Math.min(
+        100,
+        Math.max(5,risk)
+      )
+    )
+
+    const status =
+      risk >= 75
+        ? 'At risk'
+        : risk >= 55
+          ? 'Watch'
+          : 'Active'
+
+    const last =
+      daysInactive === 0
+        ? 'Today'
+        : daysInactive === 1
+          ? '1d ago'
+          : daysInactive + 'd ago'
+
+    const reason =
+      daysInactive >= 5
+        ? daysInactive +
+          ' days inactive' +
+          (
+            averageScore && averageScore < 65
+              ? ' · low quiz average'
+              : ''
+          )
+        : (
+            averageScore && averageScore < 65
+              ? 'Low quiz average'
+              : 'Healthy engagement'
+          )
+
+    const recommended =
+      risk >= 75
+        ? 'Teacher follow-up + revision plan'
+        : risk >= 55
+          ? 'Targeted revision'
+          : 'Keep current plan'
+
+    return {
+      id: profile.id,
+      name: profile.full_name,
+
+      progress,
+
+      score: averageScore || 0,
+
+      risk,
+
+      status,
+
+      last,
+
+      weak:
+        weakTopics[0] ||
+        'General review',
+
+      reason,
+
+      recommended,
+
+      trend:
+        risk >= 75
+          ? '-12%'
+          : risk >= 55
+            ? '-5%'
+            : '+5%'
+    }
+
+  }).sort(
+    (a,b)=>b.risk-a.risk
+  )
+}
 
 const nav = [
   ['dashboard','Dashboard',LayoutDashboard],['courses','Courses',BookOpen],['tutor','AI Tutor',Brain],
@@ -136,7 +300,33 @@ function TeacherDashboard(){
   const [materials,setMaterials]=useState([])
   const [materialsLoading,setMaterialsLoading]=useState(true)
 
-  useEffect(()=>{ loadMaterials() },[])
+  const [liveStudents,setLiveStudents] =
+    useState(fallbackStudents)
+
+  const [studentDataLive,setStudentDataLive] =
+    useState(false)
+
+  useEffect(()=>{
+    loadMaterials()
+  },[])
+
+  useEffect(()=>{
+
+    fetchLiveStudents()
+      .then(rows=>{
+
+        if(rows.length){
+
+          setLiveStudents(rows)
+
+          setStudentDataLive(true)
+
+        }
+
+      })
+      .catch(console.error)
+
+  },[])
 
   async function loadMaterials(){
     setMaterialsLoading(true)
@@ -194,7 +384,10 @@ function TeacherDashboard(){
   }
 
   const [action,setAction]=useState(null)
-  const riskStudents=students.filter(s=>s.risk>=60).sort((a,b)=>b.risk-a.risk)
+  const riskStudents=
+    liveStudents
+      .filter(s=>s.risk>=55)
+      .sort((a,b)=>b.risk-a.risk)
   function runAction(student,type){setAction({student,type})}
   return <>
     <section className="hero teacher-hero"><div><div className="eyebrow"><Brain size={16}/> AI teacher command center</div><h1>Biology Mastery 2027</h1><p>Prioritize who needs help, why they are struggling, and what action to take next.</p></div><div className="hero-badge"><Bell/><div><b>{riskStudents.length} priority students</b><span>AI risk queue</span></div></div></section>
@@ -221,13 +414,75 @@ function TeacherDashboard(){
         </div>}
     </Card>
     {action&&<TeacherActionModal student={action.student} type={action.type} onClose={()=>setAction(null)}/>}
-    <div className="stats"><Stat icon={Users} value="128" label="Students" sub="+14 this month"/><Stat icon={BarChart3} value="74%" label="Avg. progress" sub="+6%"/><Stat icon={Target} value="81%" label="Avg. quiz score" sub="+3%"/><Stat icon={Bell} value="9" label="Need attention" sub="3 high priority"/></div>
+    <div className="stats">
+
+      <Stat
+        icon={Users}
+        value={liveStudents.length}
+        label="Students"
+        sub={
+          studentDataLive
+            ? 'Live from Supabase'
+            : 'Demo fallback'
+        }
+      />
+
+      <Stat
+        icon={BarChart3}
+        value={
+          Math.round(
+            liveStudents.reduce(
+              (total,x)=>total+x.progress,
+              0
+            )
+            /
+            Math.max(
+              liveStudents.length,
+              1
+            )
+          ) + '%'
+        }
+        label="Avg. progress"
+        sub="Live cohort"
+      />
+
+      <Stat
+        icon={Target}
+        value={
+          Math.round(
+            liveStudents
+              .filter(x=>x.score)
+              .reduce(
+                (total,x)=>total+x.score,
+                0
+              )
+            /
+            Math.max(
+              liveStudents
+                .filter(x=>x.score)
+                .length,
+              1
+            )
+          ) + '%'
+        }
+        label="Avg. quiz score"
+        sub="From Supabase attempts"
+      />
+
+      <Stat
+        icon={Bell}
+        value={riskStudents.length}
+        label="Need attention"
+        sub="Calculated risk"
+      />
+
+    </div>
     <div className="grid teacher-main-grid">
       <Card><SectionHead eyebrow="Priority queue" title="At-risk students" icon={CircleAlert}/><div className="risk-list">{riskStudents.map(s=><div className="risk-card" key={s.name}><div className="risk-score"><strong>{s.risk}</strong><span>risk</span></div><div className="grow"><div className="risk-title"><b>{s.name}</b><Badge type={s.risk>=80?'red':'blue'}>{s.risk>=80?'High risk':'Watch'}</Badge></div><p>{s.reason}</p><div className="risk-meta"><span>Weak: {s.weak}</span><span>Last active: {s.last}</span><span className="down">Trend {s.trend}</span></div><div className="suggestion"><Sparkles size={15}/><span><b>AI suggestion:</b> {s.recommended}</span></div><div className="risk-actions"><button className="primary small" onClick={()=>runAction(s,'Reminder')}><Send size={15}/> Prepare reminder</button><button className="secondary small" onClick={()=>runAction(s,'Revision plan')}><Brain size={15}/> AI study plan</button></div></div></div>)}</div></Card>
       <div className="stack"><Card><SectionHead eyebrow="AI insights" title="What changed this week" icon={Brain}/><TeacherInsights/></Card><Card><SectionHead eyebrow="Cohort health" title="Risk distribution" icon={ShieldCheck}/><div className="health-row"><div><strong>79%</strong><span>On track</span></div><div><strong>14%</strong><span>Watch</span></div><div><strong>7%</strong><span>High risk</span></div></div><Progress value={79}/><p className="muted">Most risk is driven by inactivity and repeated low quiz scores.</p></Card></div>
     </div>
     <div className="grid two"><Card><SectionHead eyebrow="Lesson performance" title="Mastery by topic" icon={BarChart3}/>{[['Cell Structure & Function',88],['DNA & Gene Expression',63],['Human Physiology',79],['Genetics',71]].map(([n,v])=><div className="bar-row" key={n}><span>{n}</span><Progress value={v}/><b>{v}%</b></div>)}</Card><Card><SectionHead eyebrow="Automation preview" title="Recommended teacher actions" icon={Zap}/>{[['Send inactivity reminders','5 students','Ready'],['Generate DNA revision plans','12 students','Suggested'],['Celebrate high performers','18 students','Ready']].map(x=><div className="result-row" key={x[0]}><div><b>{x[0]}</b><span>{x[1]}</span></div><Badge type="blue">{x[2]}</Badge></div>)}</Card></div>
-    <StudentTable compact/>
+    <StudentTable compact rows={liveStudents}/>
   </>
 }
 function TeacherActionModal({student,type,onClose}){
@@ -250,16 +505,201 @@ function TeacherActionModal({student,type,onClose}){
 }
 
 function TeacherInsights(){return <>{[['DNA & Gene Expression is the weakest topic','37% of students missed transcription/translation questions.'],['9 students are at risk of dropping behind','Low activity or declining quiz performance detected.'],['Engagement is up 18%','Streaks and weekly challenges are improving return visits.']].map((x,i)=><div className="insight" key={x[0]}>{i===0?<CircleAlert/>:i===1?<Bell/>:<Trophy/>}<div><b>{x[0]}</b><p>{x[1]}</p></div></div>)}</>}
-function StudentTable({compact=false}){
+function StudentTable({
+  compact=false,
+  rows:sourceRows=fallbackStudents
+}){
   const [selected,setSelected]=useState(null)
-  const rows=compact?students.slice(0,5):students
+
+  const rows=
+    compact
+      ? sourceRows.slice(0,5)
+      : sourceRows
   return <Card><SectionHead eyebrow="Student intelligence" title={compact?'Student performance':'All students'} icon={Users}/><div className="table-wrap"><table><thead><tr><th>Student</th><th>Progress</th><th>Quiz avg.</th><th>Risk</th><th>Last active</th><th>Status</th><th></th></tr></thead><tbody>{rows.map(s=><tr key={s.name} className="click-row" onClick={()=>setSelected(s)}><td><b>{s.name}</b></td><td>{s.progress}%</td><td>{s.score}%</td><td><span className={'risk-number '+(s.risk>=80?'danger':s.risk>=60?'warn':'safe')}>{s.risk}</span></td><td>{s.last}</td><td><Badge type={s.status==='At risk'?'red':s.status==='Watch'?'blue':'green'}>{s.status}</Badge></td><td><ChevronRight size={18}/></td></tr>)}</tbody></table></div>{selected&&<div className="student-detail"><div className="detail-head"><div><small>STUDENT PROFILE</small><h3>{selected.name}</h3></div><button className="icon-btn" onClick={()=>setSelected(null)}>×</button></div><div className="detail-stats"><div><b>{selected.progress}%</b><span>Progress</span></div><div><b>{selected.score}%</b><span>Quiz avg.</span></div><div><b>{selected.risk}</b><span>Risk score</span></div><div><b>{selected.trend}</b><span>Trend</span></div></div><div className="detail-note"><CircleAlert size={17}/><div><b>Why flagged</b><p>{selected.reason}</p></div></div><div className="detail-note"><Brain size={17}/><div><b>Recommended action</b><p>{selected.recommended}</p></div></div></div>}</Card>
 }
 function TeacherStudents(){
-  const [query,setQuery]=useState('');const [filter,setFilter]=useState('All')
-  const filtered=students.filter(s=>s.name.toLowerCase().includes(query.toLowerCase())&&(filter==='All'||s.status===filter))
-  return <><PageTitle title="Students" text="Search students, identify risk and inspect performance."/><div className="toolbar"><div className="search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search student..."/></div><div className="filter-pills">{['All','At risk','Watch','Active'].map(x=><button key={x} className={filter===x?'active':''} onClick={()=>setFilter(x)}>{x}</button>)}</div><button className="secondary"><UserRoundCheck size={17}/> Add student</button></div><div className="stats mini-stats"><Stat icon={CircleAlert} value="9" label="Need attention"/><Stat icon={Clock3} value="5" label="Inactive 5+ days"/><Stat icon={Target} value="12" label="Score below 65%"/><Stat icon={Brain} value="17" label="AI plans ready"/></div><StudentTableCustom rows={filtered}/></>
+
+  const [query,setQuery]=useState('')
+
+  const [filter,setFilter]=useState('All')
+
+  const [rows,setRows]=useState(
+    fallbackStudents
+  )
+
+  const [live,setLive]=useState(false)
+
+  useEffect(()=>{
+
+    fetchLiveStudents()
+      .then(data=>{
+
+        if(data.length){
+
+          setRows(data)
+
+          setLive(true)
+
+        }
+
+      })
+      .catch(console.error)
+
+  },[])
+
+  const filtered =
+    rows.filter(student=>
+
+      student.name
+        .toLowerCase()
+        .includes(
+          query.toLowerCase()
+        )
+
+      &&
+
+      (
+        filter === 'All' ||
+        student.status === filter
+      )
+
+    )
+
+  const atRiskCount =
+    rows.filter(
+      student =>
+        student.status === 'At risk'
+    ).length
+
+  const inactiveCount =
+    rows.filter(
+      student =>
+        parseInt(student.last) >= 5
+    ).length
+
+  const lowScoreCount =
+    rows.filter(
+      student =>
+        student.score &&
+        student.score < 65
+    ).length
+
+  const plansSuggested =
+    rows.filter(
+      student =>
+        student.risk >= 55
+    ).length
+
+  return <>
+
+    <PageTitle
+      title="Students"
+      text={
+        live
+          ? 'Live student performance from Supabase.'
+          : 'Student performance demo data.'
+      }
+    />
+
+    <div className="toolbar">
+
+      <div className="search">
+
+        <Search size={17}/>
+
+        <input
+          value={query}
+          onChange={
+            e=>setQuery(e.target.value)
+          }
+          placeholder="Search student..."
+        />
+
+      </div>
+
+      <div className="filter-pills">
+
+        {
+          [
+            'All',
+            'At risk',
+            'Watch',
+            'Active'
+          ].map(x=>
+
+            <button
+              key={x}
+              className={
+                filter===x
+                  ? 'active'
+                  : ''
+              }
+              onClick={
+                ()=>setFilter(x)
+              }
+            >
+              {x}
+            </button>
+
+          )
+        }
+
+      </div>
+
+      <Badge
+        type={
+          live
+            ? 'green'
+            : 'blue'
+        }
+      >
+
+        {
+          live
+            ? 'Live data'
+            : 'Demo data'
+        }
+
+      </Badge>
+
+    </div>
+
+    <div className="stats mini-stats">
+
+      <Stat
+        icon={CircleAlert}
+        value={atRiskCount}
+        label="At risk"
+      />
+
+      <Stat
+        icon={Clock3}
+        value={inactiveCount}
+        label="Inactive 5+ days"
+      />
+
+      <Stat
+        icon={Target}
+        value={lowScoreCount}
+        label="Score below 65%"
+      />
+
+      <Stat
+        icon={Brain}
+        value={plansSuggested}
+        label="AI plans suggested"
+      />
+
+    </div>
+
+    <StudentTableCustom
+      rows={filtered}
+    />
+
+  </>
+
 }
+
 function StudentTableCustom({rows}){
   const [selected,setSelected]=useState(null)
   const [action,setAction]=useState(null)
@@ -305,7 +745,7 @@ function Automation(){
         if(!res.ok) throw new Error(`Webhook returned ${res.status}`)
         setLog(x=>[{time:'Just now',title:'At-risk automation ran via n8n',detail:'Adham Tarek · Reminder prepared and saved to Supabase',status:'Success'},...x])
         setAutomationStatus({type:'success',message:'n8n automation completed successfully · Saved to Supabase'})
-      } else if(k === 'low'){
+      } else if(k === 'quiz'){
         const res = await fetch('https://tag811.app.n8n.cloud/webhook/courseai-low-score',{
           method:'POST',
           headers:{'Content-Type':'application/json'},
