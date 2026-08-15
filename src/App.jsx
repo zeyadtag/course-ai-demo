@@ -359,6 +359,30 @@ function Quizzes(){
 
       if(error) throw error
 
+      if(score < 65){
+        try{
+          await fetch(
+            'https://tag811.app.n8n.cloud/webhook/courseai-low-score',
+            {
+              method:'POST',
+              headers:{
+                'Content-Type':'application/json'
+              },
+              body:JSON.stringify({
+                student_name:'Omar Mohamed',
+                score,
+                weak_topic:'Cell biology'
+              })
+            }
+          )
+        }catch(automationError){
+          console.error(
+            'Low-score automation failed',
+            automationError
+          )
+        }
+      }
+
       setSaved(true)
       await loadAttempts()
 
