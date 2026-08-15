@@ -212,7 +212,7 @@ function Stat({icon:Icon,value,label,sub}){return <Card className="stat"><div cl
 function Progress({value}){return <div className="progress"><i style={{width:`${value}%`}}/></div>}
 function Badge({children,type=''}){return <span className={'badge '+type}>{children}</span>}
 
-function StudentDashboard({data,setPage}){
+function StudentDashboard({data,setPage,setTutorPrompt}){
   const [revisionPlan,setRevisionPlan]=useState(null)
 
   useEffect(()=>{
@@ -271,7 +271,14 @@ function StudentDashboard({data,setPage}){
         <div className="revision-plan-actions">
           <button
             className="primary"
-            onClick={()=>setPage('tutor')}
+            onClick={()=>{
+              setTutorPrompt(
+                'Help me revise ' +
+                revisionPlan.weak_topic +
+                ' based on my latest revision plan.'
+              )
+              setPage('tutor')
+            }}
           >
             <Brain size={17}/>
             Ask AI Tutor about this topic
@@ -288,11 +295,22 @@ function StudentDashboard({data,setPage}){
 
 function Courses({data}){return <><PageTitle title="Courses" text="All lessons, progress and learning resources in one place."/><div className="course-banner"><div><Badge type="blue">{data.course.subject}</Badge><h2>{data.course.title}</h2><p>Instructor: {data.course.instructor_name}</p><Progress value={68}/></div><div className="course-score"><b>68%</b><span>completed</span></div></div><div className="lesson-list large">{data.lessons.map((l,i)=><Card className="lesson-card" key={l.id}><div className="lesson-num">{i+1}</div><div className="grow"><b>{l.title}</b><p>{l.summary}</p><span><Clock3 size={14}/> {l.duration_minutes} minutes</span></div><button className="primary"><PlayCircle size={17}/> Start lesson</button></Card>)}</div></>}
 
-function Tutor(){
+function Tutor({initialPrompt=''}){
+
   const [messages,setMessages]=useState([
-    {role:'ai',text:'Hi Omar! Ask me anything from your Biology course. I can explain concepts, quiz you, or simplify a difficult topic.'}
+    {
+      role:'ai',
+      text:'Hi Omar! Ask me anything from your Biology course. I can explain concepts, quiz you, or simplify a difficult topic.'
+    }
   ])
-  const [q,setQ]=useState('')
+
+  const [q,setQ]=useState(initialPrompt)
+
+  useEffect(()=>{
+    if(initialPrompt){
+      setQ(initialPrompt)
+    }
+  },[initialPrompt])
   const [loading,setLoading]=useState(false)
 
   async function send(e){
@@ -1149,9 +1167,24 @@ function Announcements(){const [text,setText]=useState('');const [sent,setSent]=
 function PageTitle({title,text}){return <div className="page-title"><div><h1>{title}</h1><p>{text}</p></div></div>}
 
 export default function App(){
-  const [mode,setMode]=useState('student');const [page,setPage]=useState('dashboard');const [data,setData]=useState(fallback);const [loading,setLoading]=useState(true)
+  const [mode,setMode]=useState('student')
+  const [page,setPage]=useState('dashboard')
+  const [data,setData]=useState(fallback)
+  const [loading,setLoading]=useState(true)
+  const [tutorPrompt,setTutorPrompt]=useState('')
   useEffect(()=>{(async()=>{try{const [{data:profiles},{data:courses},{data:lessons},{data:plans}]=await Promise.all([supabase.from('profiles').select('*'),supabase.from('courses').select('*').limit(1),supabase.from('lessons').select('*').order('position'),supabase.from('study_plans').select('*').limit(1)]);setData({student:profiles?.find(p=>p.role==='student')||fallback.student,teacher:profiles?.find(p=>p.role==='teacher')||fallback.teacher,course:courses?.[0]||fallback.course,lessons:lessons?.length?lessons:fallback.lessons,plan:plans?.[0]?.tasks||fallback.plan})}catch(e){console.warn(e)}setLoading(false)})()},[])
   const menu=mode==='student'?nav:teacherNav
-  function render(){if(mode==='student'){return page==='dashboard'?<StudentDashboard data={data} setPage={setPage}/>:page==='courses'?<Courses data={data}/>:page==='tutor'?<Tutor/>:page==='quizzes'?<Quizzes/>:page==='analytics'?<StudentAnalytics/>:<Achievements/>}return page==='dashboard'?<TeacherDashboard/>:page==='students'?<TeacherStudents/>:page==='content'?<TeacherContent data={data}/>:page==='analytics'?<TeacherAnalytics/>:page==='automation'?<Automation/>:<Announcements/>}
+  function render(){if(mode==='student'){return page==='dashboard'
+  ? <StudentDashboard
+      data={data}
+      setPage={setPage}
+      setTutorPrompt={setTutorPrompt}
+    />
+  : page==='courses'
+    ? <Courses data={data}/>
+  : page==='tutor'
+    ? <Tutor initialPrompt={tutorPrompt}/>
+  : page==='quizzes'
+    ? <Quizzes/>:page==='analytics'?<StudentAnalytics/>:<Achievements/>}return page==='dashboard'?<TeacherDashboard/>:page==='students'?<TeacherStudents/>:page==='content'?<TeacherContent data={data}/>:page==='analytics'?<TeacherAnalytics/>:page==='automation'?<Automation/>:<Announcements/>}
   return <div className="app"><aside><div className="brand"><div className="logo"><GraduationCap/></div><div><b>CourseAI</b><span>Learning OS</span></div></div><nav>{menu.map(([id,label,Icon])=><button key={id} className={page===id?'active':''} onClick={()=>setPage(id)}><Icon/>{label}</button>)}</nav><div className="demo-note"><Sparkles/><div><b>Interactive demo</b><span>Supabase-connected prototype</span></div></div></aside><main><header><div><b>Biology Academy</b><span>{loading?'Syncing demo data...':'Live demo data connected'}</span></div><div className="header-actions"><Bell size={18}/><div className="mode-switch"><button className={mode==='student'?'on':''} onClick={()=>{setMode('student');setPage('dashboard')}}>Student</button><button className={mode==='teacher'?'on':''} onClick={()=>{setMode('teacher');setPage('dashboard')}}>Teacher</button></div></div></header><div className="content">{render()}</div></main></div>
 }
