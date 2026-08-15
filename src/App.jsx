@@ -346,7 +346,7 @@ function StudentDashboard({data,setPage,setTutorPrompt}){
   useEffect(()=>{
     loadRevisionPlan()
     loadInactiveFollowup()
-  },[])
+  },[data.student.full_name])
 
   async function loadInactiveFollowup(){
     const {data:followup,error}=await supabase
@@ -375,7 +375,7 @@ function StudentDashboard({data,setPage,setTutorPrompt}){
       .from('automation_runs')
       .select('id,workflow_key,student_name,weak_topic,generated_text,status,created_at')
       .eq('workflow_key','low_score_revision')
-      .eq('student_name','Omar Mohamed')
+      .eq('student_name',data.student.full_name)
       .eq('status','prepared')
       .order('created_at',{ascending:false})
       .limit(1)
@@ -438,7 +438,7 @@ function StudentDashboard({data,setPage,setTutorPrompt}){
         .from('revision_plan_progress')
         .upsert({
           automation_run_id:revisionPlan.id,
-          student_name:'Omar Mohamed',
+          student_name:data.student.full_name,
           step_number:stepNumber,
           completed:nextCompleted,
           completed_at:nextCompleted
@@ -1731,11 +1731,22 @@ export default function App(){
   const [data,setData]=useState(fallback)
   const [loading,setLoading]=useState(true)
   const [tutorPrompt,setTutorPrompt]=useState('')
+  const [demoStudentName,setDemoStudentName]=
+    useState('Omar Mohamed')
   useEffect(()=>{(async()=>{try{const [{data:profiles},{data:courses},{data:lessons},{data:plans}]=await Promise.all([supabase.from('profiles').select('*'),supabase.from('courses').select('*').limit(1),supabase.from('lessons').select('*').order('position'),supabase.from('study_plans').select('*').limit(1)]);setData({student:profiles?.find(p=>p.role==='student')||fallback.student,teacher:profiles?.find(p=>p.role==='teacher')||fallback.teacher,course:courses?.[0]||fallback.course,lessons:lessons?.length?lessons:fallback.lessons,plan:plans?.[0]?.tasks||fallback.plan})}catch(e){console.warn(e)}setLoading(false)})()},[])
   const menu=mode==='student'?nav:teacherNav
+
+  const studentData={
+    ...data,
+    student:{
+      ...data.student,
+      full_name:demoStudentName
+    }
+  }
+
   function render(){if(mode==='student'){return page==='dashboard'
   ? <StudentDashboard
-      data={data}
+      data={studentData}
       setPage={setPage}
       setTutorPrompt={setTutorPrompt}
     />
@@ -1745,5 +1756,34 @@ export default function App(){
     ? <Tutor initialPrompt={tutorPrompt}/>
   : page==='quizzes'
     ? <Quizzes/>:page==='analytics'?<StudentAnalytics/>:<Achievements/>}return page==='dashboard'?<TeacherDashboard/>:page==='students'?<TeacherStudents/>:page==='content'?<TeacherContent data={data}/>:page==='analytics'?<TeacherAnalytics/>:page==='automation'?<Automation/>:<Announcements/>}
-  return <div className="app"><aside><div className="brand"><div className="logo"><GraduationCap/></div><div><b>CourseAI</b><span>Learning OS</span></div></div><nav>{menu.map(([id,label,Icon])=><button key={id} className={page===id?'active':''} onClick={()=>setPage(id)}><Icon/>{label}</button>)}</nav><div className="demo-note"><Sparkles/><div><b>Interactive demo</b><span>Supabase-connected prototype</span></div></div></aside><main><header><div><b>Biology Academy</b><span>{loading?'Syncing demo data...':'Live demo data connected'}</span></div><div className="header-actions"><Bell size={18}/><div className="mode-switch"><button className={mode==='student'?'on':''} onClick={()=>{setMode('student');setPage('dashboard')}}>Student</button><button className={mode==='teacher'?'on':''} onClick={()=>{setMode('teacher');setPage('dashboard')}}>Teacher</button></div></div></header><div className="content">{render()}</div></main></div>
+  return <div className="app"><aside><div className="brand"><div className="logo"><GraduationCap/></div><div><b>CourseAI</b><span>Learning OS</span></div></div><nav>{menu.map(([id,label,Icon])=><button key={id} className={page===id?'active':''} onClick={()=>setPage(id)}><Icon/>{label}</button>)}</nav><div className="demo-note"><Sparkles/><div><b>Interactive demo</b><span>Supabase-connected prototype</span></div></div></aside><main><header><div><b>Biology Academy</b><span>{loading?'Syncing demo data...':'Live demo data connected'}</span></div><div className="header-actions">
+
+{mode==='student'&&
+  <div className="student-demo-switch">
+    <span>Viewing as</span>
+
+    <select
+      value={demoStudentName}
+      onChange={e=>{
+        setDemoStudentName(e.target.value)
+        setPage('dashboard')
+        setTutorPrompt('')
+      }}
+    >
+      <option value="Omar Mohamed">
+        Omar Mohamed
+      </option>
+
+      <option value="Adham Tarek">
+        Adham Tarek
+      </option>
+
+      <option value="Youssef Karim">
+        Youssef Karim
+      </option>
+    </select>
+  </div>
+}
+
+<Bell size={18}/><div className="mode-switch"><button className={mode==='student'?'on':''} onClick={()=>{setMode('student');setPage('dashboard')}}>Student</button><button className={mode==='teacher'?'on':''} onClick={()=>{setMode('teacher');setPage('dashboard')}}>Teacher</button></div></div></header><div className="content">{render()}</div></main></div>
 }

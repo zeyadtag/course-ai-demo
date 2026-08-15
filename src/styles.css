@@ -294,3 +294,36 @@ button:disabled{opacity:.55;cursor:not-allowed}
   line-height:1.6;
   margin:12px 0 0;
 }
+.student-demo-switch{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.student-demo-switch span{
+  font-size:12px;
+  color:#7f93af;
+}
+
+.student-demo-switch select{
+  background:#091421;
+  color:#dfeaff;
+  border:1px solid #203650;
+  border-radius:9px;
+  padding:8px 10px;
+  outline:none;
+}
+
+.student-demo-switch select:focus{
+  border-color:#526f96;
+}
+
+@media(max-width:800px){
+  .student-demo-switch span{
+    display:none;
+  }
+
+  .student-demo-switch select{
+    max-width:140px;
+  }
+}
