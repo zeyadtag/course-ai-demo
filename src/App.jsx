@@ -186,6 +186,21 @@ function Automation(){
         if(!res.ok) throw new Error(`Webhook returned ${res.status}`)
         setLog(x=>[{time:'Just now',title:'Inactive student follow-up ran via n8n',detail:'Adham Tarek · 8 days inactive · Follow-up saved to Supabase',status:'Success'},...x])
         setAutomationStatus({type:'success',message:'Inactive student follow-up prepared · Saved to Supabase'})
+      } else if(k === 'weekly'){
+        const res = await fetch('https://tag811.app.n8n.cloud/webhook/courseai-weekly-report',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            students:128,
+            avg_progress:74,
+            avg_quiz_score:81,
+            at_risk_students:9,
+            weakest_topic:'Genetics'
+          })
+        })
+        if(!res.ok) throw new Error(`Webhook returned ${res.status}`)
+        setLog(x=>[{time:'Just now',title:'Weekly teacher report ran via n8n',detail:'128 students analyzed · Report saved to Supabase',status:'Success'},...x])
+        setAutomationStatus({type:'success',message:'Weekly teacher report generated · Saved to Supabase'})
       } else {
         await new Promise(resolve=>setTimeout(resolve,700))
         setLog(x=>[{time:'Just now',title:`${title} ran in demo mode`,detail:'This workflow is ready for the next n8n connection',status:'Success'},...x])
