@@ -237,3 +237,60 @@ button:disabled{opacity:.55;cursor:not-allowed}
     display:none;
   }
 }
+.welcome-back-card{
+  margin-bottom:18px;
+}
+
+.welcome-back-message{
+  line-height:1.7;
+  color:#b8c7da;
+}
+
+.welcome-back-actions{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  margin-top:16px;
+  flex-wrap:wrap;
+}
+
+.inactive-followups-card{
+  margin-bottom:18px;
+}
+
+.inactive-followup-list{
+  display:grid;
+  gap:12px;
+}
+
+.inactive-followup-item{
+  border:1px solid #203650;
+  background:#091421;
+  border-radius:12px;
+  padding:15px;
+}
+
+.inactive-followup-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+
+.inactive-followup-head div{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+}
+
+.inactive-followup-head span{
+  color:#7f93af;
+  font-size:12px;
+}
+
+.inactive-followup-item p{
+  color:#aebdd0;
+  line-height:1.6;
+  margin:12px 0 0;
+}
