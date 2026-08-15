@@ -133,6 +133,44 @@ function TeacherDashboard(){
   const [materialFile,setMaterialFile]=useState(null)
   const [uploading,setUploading]=useState(false)
   const [uploadStatus,setUploadStatus]=useState(null)
+  const [materials,setMaterials]=useState([])
+  const [materialsLoading,setMaterialsLoading]=useState(true)
+
+  useEffect(()=>{ loadMaterials() },[])
+
+  async function loadMaterials(){
+    setMaterialsLoading(true)
+    const {data,error}=await supabase
+      .from('course_materials')
+      .select('id,title,subject,source_name,is_active,created_at')
+      .order('created_at',{ascending:false})
+    if(!error) setMaterials(data||[])
+    else console.error(error)
+    setMaterialsLoading(false)
+  }
+
+  async function toggleMaterial(material){
+    const {error}=await supabase
+      .from('course_materials')
+      .update({is_active:!material.is_active,updated_at:new Date().toISOString()})
+      .eq('id',material.id)
+    if(error){
+      console.error(error)
+      setUploadStatus({type:'error',message:'Could not update this material.'})
+      return
+    }
+    setMaterials(x=>x.map(m=>m.id===material.id?{...m,is_active:!m.is_active}:m))
+  }
+
+  async function deleteMaterial(id){
+    const {error}=await supabase.from('course_materials').delete().eq('id',id)
+    if(error){
+      console.error(error)
+      setUploadStatus({type:'error',message:'Could not delete this material.'})
+      return
+    }
+    setMaterials(x=>x.filter(m=>m.id!==id))
+  }
 
   async function uploadMaterial(e){
     e.preventDefault()
@@ -148,6 +186,7 @@ function TeacherDashboard(){
       if(!res.ok || result.success===false) throw new Error(result.message || `Upload returned ${res.status}`)
       setUploadStatus({type:'success',message:'Course material uploaded. AI Tutor can now use it.'})
       setMaterialTitle(''); setMaterialFile(null); e.target.reset()
+      loadMaterials()
     }catch(err){
       console.error(err)
       setUploadStatus({type:'error',message:'Upload failed. Please try again.'})
@@ -160,6 +199,27 @@ function TeacherDashboard(){
   return <>
     <section className="hero teacher-hero"><div><div className="eyebrow"><Brain size={16}/> AI teacher command center</div><h1>Biology Mastery 2027</h1><p>Prioritize who needs help, why they are struggling, and what action to take next.</p></div><div className="hero-badge"><Bell/><div><b>{riskStudents.length} priority students</b><span>AI risk queue</span></div></div></section>
     <Card className="material-upload-card"><SectionHead eyebrow="Course Knowledge" title="Upload Course Material" icon={Upload}/><p className="muted">Upload a PDF and CourseAI will extract its text through n8n, save it to Supabase, and make it available to the AI Tutor.</p><form className="material-upload-form" onSubmit={uploadMaterial}><input type="text" value={materialTitle} onChange={e=>setMaterialTitle(e.target.value)} placeholder="Material title (optional)" disabled={uploading}/><label className="file-picker"><Upload size={18}/><span>{materialFile?materialFile.name:'Choose PDF'}</span><input type="file" accept="application/pdf,.pdf" onChange={e=>setMaterialFile(e.target.files?.[0]||null)} disabled={uploading}/></label><button className="primary" disabled={uploading||!materialFile}><Upload size={17}/> {uploading?'Uploading...':'Upload material'}</button></form>{uploadStatus&&<div className={'material-upload-status '+uploadStatus.type}>{uploadStatus.message}</div>}</Card>
+    <Card className="materials-library-card">
+      <SectionHead eyebrow="Knowledge Library" title="Uploaded Materials" icon={FileText}/>
+      <p className="muted">Active materials are available to the AI Tutor. Disable a file to exclude it without deleting it.</p>
+      {materialsLoading?<p className="muted">Loading materials...</p>:
+        <div className="materials-library">
+          {materials.length===0?<div className="empty-state">No course materials uploaded yet.</div>:
+            materials.map(m=><div className="material-row" key={m.id}>
+              <div className="material-icon"><FileText size={18}/></div>
+              <div className="grow">
+                <b>{m.title}</b>
+                <span>{m.source_name||'Course material'} · {m.subject||'Biology'}</span>
+              </div>
+              <Badge type={m.is_active?'green':'blue'}>{m.is_active?'Active':'Disabled'}</Badge>
+              <button className="secondary small" onClick={()=>toggleMaterial(m)}>
+                {m.is_active?'Disable':'Enable'}
+              </button>
+              <button className="danger small" onClick={()=>deleteMaterial(m.id)}>Delete</button>
+            </div>)
+          }
+        </div>}
+    </Card>
     {action&&<TeacherActionModal student={action.student} type={action.type} onClose={()=>setAction(null)}/>}
     <div className="stats"><Stat icon={Users} value="128" label="Students" sub="+14 this month"/><Stat icon={BarChart3} value="74%" label="Avg. progress" sub="+6%"/><Stat icon={Target} value="81%" label="Avg. quiz score" sub="+3%"/><Stat icon={Bell} value="9" label="Need attention" sub="3 high priority"/></div>
     <div className="grid teacher-main-grid">
