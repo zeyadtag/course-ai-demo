@@ -358,6 +358,16 @@ function StudentDashboard({data,setPage,setTutorPrompt}){
           </Badge>
         </div>
 
+        <div className="revision-full-plan">
+          <div className="revision-full-plan-title">
+            AI Revision Plan
+          </div>
+
+          <pre className="revision-plan-text">
+            {revisionPlan.generated_text}
+          </pre>
+        </div>
+
         <div className="revision-progress-summary">
           <div>
             <b>{completedRevisionSteps}/4 steps completed</b>

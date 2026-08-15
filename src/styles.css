@@ -171,3 +171,15 @@ button:disabled{opacity:.55;cursor:not-allowed}
   color:#7f93af;
   margin-top:3px;
 }
+.revision-full-plan{
+  margin:16px 0 20px;
+}
+
+.revision-full-plan-title{
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:#7f93af;
+  margin-bottom:8px;
+}
