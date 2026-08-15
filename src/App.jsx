@@ -229,115 +229,6 @@ async function fetchLiveStudents(){
   )
 }
 
-async function runAtRiskStudentAutomations(students){
-
-  console.log(
-    'V24 at-risk input students:',
-    students.map(s=>({
-      name:s.name,
-      id:s.id,
-      risk:s.risk
-    }))
-  )
-
-  const atRiskStudents=
-    students.filter(
-      student =>
-        student.id &&
-        student.risk >= 70
-    )
-
-  console.log(
-    'V24 matched at-risk students:',
-    atRiskStudents
-  )
-
-  for(const student of atRiskStudents){
-
-    try{
-
-      const {data:existing,error:readError}=
-        await supabase
-          .from('at_risk_student_alerts')
-          .select('id')
-          .eq('student_id',student.id)
-          .limit(1)
-          .maybeSingle()
-
-      if(readError){
-        console.error(
-          'At-risk alert check failed',
-          readError
-        )
-        continue
-      }
-
-      if(existing){
-        continue
-      }
-
-      const response=
-        await fetch(
-          'https://tag811.app.n8n.cloud/webhook/courseai-at-risk',
-          {
-            method:'POST',
-            headers:{
-              'Content-Type':'application/json'
-            },
-            body:JSON.stringify({
-              student_name:student.name,
-              risk_score:student.risk,
-              weak_topic:student.weak,
-              action_type:'AI intervention'
-            })
-          }
-        )
-
-      if(!response.ok){
-        throw new Error(
-          'At-risk webhook returned '+
-          response.status
-        )
-      }
-
-      const {error:insertError}=
-        await supabase
-          .from('at_risk_student_alerts')
-          .insert({
-            student_id:student.id,
-            student_name:student.name,
-            risk_score:student.risk,
-            weak_topic:student.weak,
-            status:'sent'
-          })
-
-      if(insertError){
-        console.error(
-          'Could not save at-risk alert',
-          insertError
-        )
-        continue
-      }
-
-      console.log(
-        'At-risk automation triggered:',
-        student.name
-      )
-
-    }catch(error){
-
-      console.error(
-        'At-risk automation failed:',
-        student.name,
-        error
-      )
-
-    }
-
-  }
-
-}
-
 async function runInactiveStudentAutomations(students){
 
   const inactiveStudents=
@@ -451,11 +342,35 @@ function StudentDashboard({data,setPage,setTutorPrompt}){
   const [revisionSteps,setRevisionSteps]=useState([])
   const [revisionSaving,setRevisionSaving]=useState(false)
   const [inactiveFollowup,setInactiveFollowup]=useState(null)
+  const [atRiskIntervention,setAtRiskIntervention]=useState(null)
 
   useEffect(()=>{
     loadRevisionPlan()
     loadInactiveFollowup()
+    loadAtRiskIntervention()
   },[data.student.full_name])
+
+  async function loadAtRiskIntervention(){
+    const {data:intervention,error}=await supabase
+      .from('automation_runs')
+      .select('id,student_name,risk_score,weak_topic,generated_text,status,created_at')
+      .eq('workflow_key','at_risk_student')
+      .eq('student_name',data.student.full_name)
+      .eq('status','prepared')
+      .order('created_at',{ascending:false})
+      .limit(1)
+      .maybeSingle()
+
+    if(error){
+      console.error(
+        'Could not load at-risk intervention',
+        error
+      )
+      return
+    }
+
+    setAtRiskIntervention(intervention||null)
+  }
 
   async function loadInactiveFollowup(){
     const {data:followup,error}=await supabase
@@ -592,6 +507,47 @@ function StudentDashboard({data,setPage,setTutorPrompt}){
 
   return <>
     <section className="hero"><div><div className="eyebrow"><Sparkles size={16}/> Personalized learning dashboard</div><h1>Welcome back, {data.student.full_name.split(' ')[0]} 👋</h1><p>Your AI study plan adapts to your weak topics and recent quiz results.</p></div><div className="hero-badge"><Flame/><div><b>{data.student.streak} days</b><span>Study streak</span></div></div></section>
+    {atRiskIntervention&&
+      <Card className="welcome-back-card">
+        <SectionHead
+          eyebrow="AI support"
+          title="Personalized support prepared"
+          icon={Brain}
+        />
+
+        <p className="welcome-back-message">
+          {atRiskIntervention.generated_text}
+        </p>
+
+        <div className="welcome-back-actions">
+          <div>
+            <Badge type="blue">
+              Risk score: {atRiskIntervention.risk_score}
+            </Badge>
+            {' '}
+            <Badge type="blue">
+              Focus: {atRiskIntervention.weak_topic}
+            </Badge>
+          </div>
+
+          <button
+            className="primary"
+            onClick={()=>{
+              setTutorPrompt(
+                'Help me review '+
+                atRiskIntervention.weak_topic+
+                '. Use ONLY information explicitly supported by my uploaded course material. Do not introduce topics that are absent from the uploaded material.'
+              )
+              setPage('tutor')
+            }}
+          >
+            <Brain size={17}/>
+            Start support session
+          </button>
+        </div>
+      </Card>
+    }
+
     {inactiveFollowup&&
       <Card className="welcome-back-card">
         <SectionHead
@@ -1126,10 +1082,45 @@ function TeacherDashboard(){
   const [inactiveFollowups,setInactiveFollowups] =
     useState([])
 
+  const [atRiskInterventions,setAtRiskInterventions] =
+    useState([])
+
   useEffect(()=>{
     loadMaterials()
     loadInactiveFollowups()
+    loadAtRiskInterventions()
   },[])
+
+  async function loadAtRiskInterventions(){
+    const {data,error}=await supabase
+      .from('automation_runs')
+      .select('id,student_name,risk_score,weak_topic,generated_text,status,created_at')
+      .eq('workflow_key','at_risk_student')
+      .order('created_at',{ascending:false})
+      .limit(20)
+
+    if(error){
+      console.error(
+        'Could not load at-risk interventions',
+        error
+      )
+      return
+    }
+
+    const latestByStudent=[]
+
+    for(const item of (data||[])){
+      if(
+        !latestByStudent.some(
+          x=>x.student_name===item.student_name
+        )
+      ){
+        latestByStudent.push(item)
+      }
+    }
+
+    setAtRiskInterventions(latestByStudent)
+  }
 
   async function loadInactiveFollowups(){
     const {data,error}=await supabase
@@ -1172,7 +1163,6 @@ function TeacherDashboard(){
           setStudentDataLive(true)
 
           runInactiveStudentAutomations(rows)
-          runAtRiskStudentAutomations(rows)
 
         }
 
@@ -1244,6 +1234,40 @@ function TeacherDashboard(){
   function runAction(student,type){setAction({student,type})}
   return <>
     <section className="hero teacher-hero"><div><div className="eyebrow"><Brain size={16}/> AI teacher command center</div><h1>Biology Mastery 2027</h1><p>Prioritize who needs help, why they are struggling, and what action to take next.</p></div><div className="hero-badge"><Bell/><div><b>{riskStudents.length} priority students</b><span>AI risk queue</span></div></div></section>
+
+    {atRiskInterventions.length>0&&
+      <Card className="inactive-followups-card">
+        <SectionHead
+          eyebrow="AI risk automation"
+          title="At-risk interventions"
+          icon={Brain}
+        />
+
+        <div className="inactive-followup-list">
+          {atRiskInterventions.map(item=>
+            <div
+              className="inactive-followup-item"
+              key={item.id}
+            >
+              <div className="inactive-followup-head">
+                <div>
+                  <b>{item.student_name}</b>
+                  <span>
+                    {item.weak_topic} · Risk {item.risk_score}
+                  </span>
+                </div>
+
+                <Badge type="green">
+                  {item.status}
+                </Badge>
+              </div>
+
+              <p>{item.generated_text}</p>
+            </div>
+          )}
+        </div>
+      </Card>
+    }
 
     {inactiveFollowups.length>0&&
       <Card className="inactive-followups-card">
@@ -1460,7 +1484,6 @@ function TeacherStudents(){
           setLive(true)
 
           runInactiveStudentAutomations(data)
-          runAtRiskStudentAutomations(data)
 
         }
 
