@@ -135,6 +135,7 @@ function Automation(){
     {time:'Yesterday',title:'Weekly teacher report generated',detail:'128 students analyzed',status:'Success'}
   ])
   const [running,setRunning]=useState('')
+  const [automationStatus,setAutomationStatus]=useState(null)
   const items=[
     ['risk','At-risk student alert','Detect low engagement or declining scores.',Bell,'3 students','2 min ago'],
     ['inactive','Inactive student follow-up','Prepare a reminder after 5 days of inactivity.',MessageCircle,'5 students','18 min ago'],
@@ -143,6 +144,7 @@ function Automation(){
   ]
   async function runNow(k,title){
     setRunning(k)
+    setAutomationStatus({type:'running',message:`Running ${title}...`})
     try {
       if(k === 'risk'){
         const res = await fetch('https://tag811.app.n8n.cloud/webhook/courseai-at-risk',{
@@ -157,18 +159,26 @@ function Automation(){
         })
         if(!res.ok) throw new Error(`Webhook returned ${res.status}`)
         setLog(x=>[{time:'Just now',title:'At-risk automation ran via n8n',detail:'Adham Tarek · Reminder prepared and saved to Supabase',status:'Success'},...x])
+        setAutomationStatus({type:'success',message:'n8n automation completed successfully · Saved to Supabase'})
       } else {
         await new Promise(resolve=>setTimeout(resolve,700))
         setLog(x=>[{time:'Just now',title:`${title} ran in demo mode`,detail:'This workflow is ready for the next n8n connection',status:'Success'},...x])
+        setAutomationStatus({type:'success',message:`${title} demo completed`})
       }
     } catch(err){
       console.error(err)
       setLog(x=>[{time:'Just now',title:'Automation connection failed',detail:'Could not reach the n8n production webhook',status:'Queued'},...x])
+      setAutomationStatus({type:'error',message:'Automation request failed. Check n8n webhook status.'})
     } finally {
       setRunning('')
+      setTimeout(()=>setAutomationStatus(null),4500)
     }
   }
   return <>
+    {automationStatus&&<div className={'automation-toast '+automationStatus.type}>
+      {automationStatus.type==='success'?<CheckCircle2 size={18}/>:automationStatus.type==='error'?<CircleAlert size={18}/>:<Zap size={18}/>}
+      <span>{automationStatus.message}</span>
+    </div>}
     <PageTitle title="Automation Center" text="Monitor workflows, trigger demo runs and review recent activity."/>
     <div className="stats">
       <Stat icon={Zap} value="4" label="Active workflows" sub="All systems healthy"/>

@@ -28,3 +28,9 @@
 .integration-strip b,.integration-strip span{display:block}.integration-strip span{font-size:12px;color:#83aa9f;margin-top:3px}
 button:disabled{opacity:.55;cursor:not-allowed}
 @media(max-width:900px){.automation-grid{grid-template-columns:1fr}}
+
+.automation-toast{position:fixed;top:88px;right:24px;z-index:200;display:flex;align-items:center;gap:10px;max-width:430px;padding:14px 16px;border-radius:12px;box-shadow:0 18px 45px rgba(0,0,0,.35);font-weight:700}
+.automation-toast.running{background:#142b4a;border:1px solid #315f99;color:#b9d5ff}
+.automation-toast.success{background:#10372d;border:1px solid #2d7b62;color:#9ff0d0}
+.automation-toast.error{background:#3d1822;border:1px solid #7d2a3f;color:#ffb0c2}
+@media(max-width:700px){.automation-toast{left:12px;right:12px;top:78px;max-width:none}}
