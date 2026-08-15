@@ -976,7 +976,20 @@ function TeacherDashboard(){
       return
     }
 
-    setInactiveFollowups(data||[])
+    const latestByStudent = []
+
+    for(const item of (data||[])){
+      const alreadyAdded =
+        latestByStudent.some(
+          x => x.student_name === item.student_name
+        )
+
+      if(!alreadyAdded){
+        latestByStudent.push(item)
+      }
+    }
+
+    setInactiveFollowups(latestByStudent)
   }
 
   useEffect(()=>{
