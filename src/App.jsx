@@ -141,12 +141,32 @@ function Automation(){
     ['quiz','Low-score revision plan','Generate a revision plan when score is below 65%.',Brain,'12 students','1h ago'],
     ['weekly','Weekly teacher report','Summarize weak topics, growth and intervention needs.',FileText,'128 students','Yesterday']
   ]
-  function runNow(k,title){
+  async function runNow(k,title){
     setRunning(k)
-    setTimeout(()=>{
+    try {
+      if(k === 'risk'){
+        const res = await fetch('https://tag811.app.n8n.cloud/webhook/courseai-at-risk',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            student_name:'Adham Tarek',
+            risk_score:92,
+            weak_topic:'Cell Biology',
+            action_type:'Reminder'
+          })
+        })
+        if(!res.ok) throw new Error(`Webhook returned ${res.status}`)
+        setLog(x=>[{time:'Just now',title:'At-risk automation ran via n8n',detail:'Adham Tarek · Reminder prepared and saved to Supabase',status:'Success'},...x])
+      } else {
+        await new Promise(resolve=>setTimeout(resolve,700))
+        setLog(x=>[{time:'Just now',title:`${title} ran in demo mode`,detail:'This workflow is ready for the next n8n connection',status:'Success'},...x])
+      }
+    } catch(err){
+      console.error(err)
+      setLog(x=>[{time:'Just now',title:'Automation connection failed',detail:'Could not reach the n8n production webhook',status:'Queued'},...x])
+    } finally {
       setRunning('')
-      setLog(x=>[{time:'Just now',title:`${title} ran manually`,detail:'Demo workflow completed successfully',status:'Success'},...x])
-    },900)
+    }
   }
   return <>
     <PageTitle title="Automation Center" text="Monitor workflows, trigger demo runs and review recent activity."/>
