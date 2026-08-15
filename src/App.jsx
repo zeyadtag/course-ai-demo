@@ -955,9 +955,29 @@ function TeacherDashboard(){
   const [studentDataLive,setStudentDataLive] =
     useState(false)
 
+  const [inactiveFollowups,setInactiveFollowups] =
+    useState([])
+
   useEffect(()=>{
     loadMaterials()
+    loadInactiveFollowups()
   },[])
+
+  async function loadInactiveFollowups(){
+    const {data,error}=await supabase
+      .from('automation_runs')
+      .select('id,student_name,weak_topic,generated_text,status,created_at')
+      .eq('workflow_key','inactive_student_followup')
+      .order('created_at',{ascending:false})
+      .limit(10)
+
+    if(error){
+      console.error('Could not load inactive followups',error)
+      return
+    }
+
+    setInactiveFollowups(data||[])
+  }
 
   useEffect(()=>{
 
@@ -1042,6 +1062,38 @@ function TeacherDashboard(){
   function runAction(student,type){setAction({student,type})}
   return <>
     <section className="hero teacher-hero"><div><div className="eyebrow"><Brain size={16}/> AI teacher command center</div><h1>Biology Mastery 2027</h1><p>Prioritize who needs help, why they are struggling, and what action to take next.</p></div><div className="hero-badge"><Bell/><div><b>{riskStudents.length} priority students</b><span>AI risk queue</span></div></div></section>
+
+    {inactiveFollowups.length>0&&
+      <Card className="inactive-followups-card">
+        <SectionHead
+          eyebrow="AI automation"
+          title="Inactive student follow-ups"
+          icon={MessageCircle}
+        />
+
+        <div className="inactive-followup-list">
+          {inactiveFollowups.map(item=>
+            <div
+              className="inactive-followup-item"
+              key={item.id}
+            >
+              <div className="inactive-followup-head">
+                <div>
+                  <b>{item.student_name}</b>
+                  <span>{item.weak_topic}</span>
+                </div>
+
+                <Badge type="green">
+                  {item.status}
+                </Badge>
+              </div>
+
+              <p>{item.generated_text}</p>
+            </div>
+          )}
+        </div>
+      </Card>
+    }
     <Card className="material-upload-card"><SectionHead eyebrow="Course Knowledge" title="Upload Course Material" icon={Upload}/><p className="muted">Upload a PDF and CourseAI will extract its text through n8n, save it to Supabase, and make it available to the AI Tutor.</p><form className="material-upload-form" onSubmit={uploadMaterial}><input type="text" value={materialTitle} onChange={e=>setMaterialTitle(e.target.value)} placeholder="Material title (optional)" disabled={uploading}/><label className="file-picker"><Upload size={18}/><span>{materialFile?materialFile.name:'Choose PDF'}</span><input type="file" accept="application/pdf,.pdf" onChange={e=>setMaterialFile(e.target.files?.[0]||null)} disabled={uploading}/></label><button className="primary" disabled={uploading||!materialFile}><Upload size={17}/> {uploading?'Uploading...':'Upload material'}</button></form>{uploadStatus&&<div className={'material-upload-status '+uploadStatus.type}>{uploadStatus.message}</div>}</Card>
     <Card className="materials-library-card">
       <SectionHead eyebrow="Knowledge Library" title="Uploaded Materials" icon={FileText}/>
