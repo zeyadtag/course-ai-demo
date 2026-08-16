@@ -154,7 +154,7 @@ async function fetchLiveStudents(){
     )
 
     const status =
-      risk >= 75
+      risk >= 70
         ? 'At risk'
         : risk >= 55
           ? 'Watch'
@@ -183,7 +183,7 @@ async function fetchLiveStudents(){
           )
 
     const recommended =
-      risk >= 75
+      risk >= 70
         ? 'Teacher follow-up + revision plan'
         : risk >= 55
           ? 'Targeted revision'
@@ -217,7 +217,7 @@ async function fetchLiveStudents(){
       recommended,
 
       trend:
-        risk >= 75
+        risk >= 70
           ? '-12%'
           : risk >= 55
             ? '-5%'
@@ -346,12 +346,90 @@ function StudentDashboard({data,setPage,setTutorPrompt}){
   const [studentNotifications,setStudentNotifications]=useState([])
   const [notificationsLoading,setNotificationsLoading]=useState(false)
 
+  const [liveStudentStats,setLiveStudentStats]=useState({
+    progress:0,
+    quizAverage:0,
+    weakTopic:'General review',
+    points:0,
+    streak:0
+  })
+
   useEffect(()=>{
     loadRevisionPlan()
     loadInactiveFollowup()
     loadAtRiskIntervention()
     loadStudentNotifications()
+    loadLiveStudentStats()
   },[data.student.full_name])
+
+  async function loadLiveStudentStats(){
+
+    const {data:profile,error:profileError}=await supabase
+      .from('profiles')
+      .select('id,points,streak')
+      .eq('full_name',data.student.full_name)
+      .eq('role','student')
+      .limit(1)
+      .maybeSingle()
+
+    if(profileError || !profile){
+      if(profileError) console.error(profileError)
+      return
+    }
+
+    const [
+      {data:enrollment,error:enrollmentError},
+      {data:attempts,error:attemptsError}
+    ]=await Promise.all([
+
+      supabase
+        .from('enrollments')
+        .select('progress')
+        .eq('student_id',profile.id)
+        .limit(1)
+        .maybeSingle(),
+
+      supabase
+        .from('quiz_attempts')
+        .select('score,weak_topics,completed_at')
+        .eq('student_id',profile.id)
+        .order('completed_at',{ascending:false})
+
+    ])
+
+    if(enrollmentError){
+      console.error(enrollmentError)
+    }
+
+    if(attemptsError){
+      console.error(attemptsError)
+    }
+
+    const rows=attempts||[]
+
+    const quizAverage=
+      rows.length
+        ? Math.round(
+            rows.reduce(
+              (sum,row)=>sum+Number(row.score||0),
+              0
+            )/rows.length
+          )
+        : 0
+
+    const weakTopic=
+      rows.flatMap(
+        row=>row.weak_topics||[]
+      ).filter(Boolean)[0] || 'General review'
+
+    setLiveStudentStats({
+      progress:Number(enrollment?.progress||0),
+      quizAverage,
+      weakTopic,
+      points:Number(profile.points||0),
+      streak:Number(profile.streak||0)
+    })
+  }
 
   async function loadStudentNotifications(){
     setNotificationsLoading(true)
@@ -564,7 +642,7 @@ function StudentDashboard({data,setPage,setTutorPrompt}){
     completedRevisionSteps===4
 
   return <>
-    <section className="hero"><div><div className="eyebrow"><Sparkles size={16}/> Personalized learning dashboard</div><h1>Welcome back, {data.student.full_name.split(' ')[0]} 👋</h1><p>Your AI study plan adapts to your weak topics and recent quiz results.</p></div><div className="hero-badge"><Flame/><div><b>{data.student.streak} days</b><span>Study streak</span></div></div></section>
+    <section className="hero"><div><div className="eyebrow"><Sparkles size={16}/> Personalized learning dashboard</div><h1>Welcome back, {data.student.full_name.split(' ')[0]} 👋</h1><p>Your AI study plan adapts to your weak topics and recent quiz results.</p></div><div className="hero-badge"><Flame/><div><b>{liveStudentStats.streak} days</b><span>Study streak</span></div></div></section>
     {studentNotifications.length>0&&
       <Card className="welcome-back-card">
         <SectionHead
@@ -691,10 +769,38 @@ function StudentDashboard({data,setPage,setTutorPrompt}){
       </Card>
     }
 
-    <div className="stats"><Stat icon={Target} value="68%" label="Course progress" sub="+8% this week"/><Stat icon={Trophy} value={data.student.points} label="XP points" sub="Top 18%"/><Stat icon={CheckCircle2} value="86%" label="Quiz average" sub="+4% vs last week"/><Stat icon={Clock3} value="3h 10m" label="This week" sub="Goal: 4h"/></div>
-    <div className="grid two"><Card><SectionHead eyebrow="Continue learning" title={data.course.title} icon={BookOpen}/><Progress value={68}/><p className="muted">68% complete · 3 lessons in this demo</p><div className="lesson-list">{data.lessons.map((l,i)=><button className="lesson" key={l.id} onClick={()=>setPage('courses')}><div className="lesson-num">{i+1}</div><div className="grow"><b>{l.title}</b><span>{l.summary}</span></div><span className="duration">{l.duration_minutes} min</span><PlayCircle size={20}/></button>)}</div></Card>
+    <div className="stats">
+      <Stat
+        icon={Target}
+        value={liveStudentStats.progress+'%'}
+        label="Course progress"
+        sub="Live from Supabase"
+      />
+
+      <Stat
+        icon={Trophy}
+        value={liveStudentStats.points}
+        label="XP points"
+        sub="Student profile"
+      />
+
+      <Stat
+        icon={CheckCircle2}
+        value={liveStudentStats.quizAverage+'%'}
+        label="Quiz average"
+        sub="All quiz attempts"
+      />
+
+      <Stat
+        icon={Brain}
+        value={liveStudentStats.weakTopic}
+        label="Current weak topic"
+        sub="AI learning signal"
+      />
+    </div>
+    <div className="grid two"><Card><SectionHead eyebrow="Continue learning" title={data.course.title} icon={BookOpen}/><Progress value={liveStudentStats.progress}/><p className="muted">{liveStudentStats.progress}% complete · {data.lessons.length} lessons available</p><div className="lesson-list">{data.lessons.map((l,i)=><button className="lesson" key={l.id} onClick={()=>setPage('courses')}><div className="lesson-num">{i+1}</div><div className="grow"><b>{l.title}</b><span>{l.summary}</span></div><span className="duration">{l.duration_minutes} min</span><PlayCircle size={20}/></button>)}</div></Card>
     <Card><SectionHead eyebrow="AI generated" title="Today's study plan" icon={ListChecks}/>{data.plan.map((t,i)=><div className="task" key={i}><div><b>{t.task}</b><span>{t.day} · {t.minutes} min</span></div><CheckCircle2 size={20}/></div>)}</Card></div>
-    <div className="grid three"><Card><SectionHead eyebrow="Weak topic" title="DNA transcription" icon={CircleAlert}/><p className="muted">You missed 3 of the last 5 questions on transcription.</p><button className="primary" onClick={()=>setPage('tutor')}>Ask AI Tutor</button></Card><Card><SectionHead eyebrow="Next milestone" title="Quiz Master" icon={Trophy}/><p className="muted">Score 90%+ in two more quizzes to unlock 500 XP.</p><Progress value={67}/></Card><Card><SectionHead eyebrow="Upcoming" title="Weekly biology challenge" icon={CalendarDays}/><p className="muted">Saturday · 8:00 PM · 20 questions</p><Badge type="blue">Starts in 2 days</Badge></Card></div>
+    <div className="grid three"><Card><SectionHead eyebrow="Weak topic" title={liveStudentStats.weakTopic} icon={CircleAlert}/><p className="muted">Based on your latest quiz performance and recorded weak topics.</p><button className="primary" onClick={()=>setPage('tutor')}>Ask AI Tutor</button></Card><Card><SectionHead eyebrow="Next milestone" title="Quiz Master" icon={Trophy}/><p className="muted">Score 90%+ in two more quizzes to unlock 500 XP.</p><Progress value={67}/></Card><Card><SectionHead eyebrow="Upcoming" title="Weekly biology challenge" icon={CalendarDays}/><p className="muted">Saturday · 8:00 PM · 20 questions</p><Badge type="blue">Starts in 2 days</Badge></Card></div>
 
     {revisionPlan&&
       <Card className="revision-plan-card">
