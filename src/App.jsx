@@ -827,12 +827,12 @@ function StudentDashboard({data,setPage,setTutorPrompt}){
 
 function Courses({data}){return <><PageTitle title="Courses" text="All lessons, progress and learning resources in one place."/><div className="course-banner"><div><Badge type="blue">{data.course.subject}</Badge><h2>{data.course.title}</h2><p>Instructor: {data.course.instructor_name}</p><Progress value={68}/></div><div className="course-score"><b>68%</b><span>completed</span></div></div><div className="lesson-list large">{data.lessons.map((l,i)=><Card className="lesson-card" key={l.id}><div className="lesson-num">{i+1}</div><div className="grow"><b>{l.title}</b><p>{l.summary}</p><span><Clock3 size={14}/> {l.duration_minutes} minutes</span></div><button className="primary"><PlayCircle size={17}/> Start lesson</button></Card>)}</div></>}
 
-function Tutor({initialPrompt=''}){
+function Tutor({initialPrompt='',studentName='Student'}){
 
   const [messages,setMessages]=useState([
     {
       role:'ai',
-      text:'Hi Omar! Ask me anything from your Biology course. I can explain concepts, quiz you, or simplify a difficult topic.'
+      text:'Hi '+studentName.split(' ')[0]+'! Ask me anything from your Biology course. I can explain concepts, quiz you, or simplify a difficult topic.'
     }
   ])
 
@@ -858,7 +858,10 @@ function Tutor({initialPrompt=''}){
       const res=await fetch('https://tag811.app.n8n.cloud/webhook/courseai-ai-tutor',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({question})
+        body:JSON.stringify({
+          question,
+          student_name:studentName
+        })
       })
       if(!res.ok) throw new Error(`AI Tutor webhook returned ${res.status}`)
       const data=await res.json()
@@ -900,7 +903,7 @@ function Tutor({initialPrompt=''}){
   </>
 }
 
-function Quizzes(){
+function Quizzes({studentName='Omar Mohamed'}){
   const [started,setStarted]=useState(false)
   const [answer,setAnswer]=useState('')
   const [result,setResult]=useState(null)
@@ -910,22 +913,27 @@ function Quizzes(){
   const [improvement,setImprovement]=useState(null)
 
   useEffect(()=>{
+    setStarted(false)
+    setAnswer('')
+    setResult(null)
+    setSaved(false)
     loadAttempts()
-  },[])
+  },[studentName])
 
   async function loadAttempts(){
-    const {data:omar}=await supabase
+    const {data:student}=await supabase
       .from('profiles')
       .select('id')
-      .eq('full_name','Omar Mohamed')
+      .eq('full_name',studentName)
+      .eq('role','student')
       .maybeSingle()
 
-    if(!omar) return
+    if(!student) return
 
     const {data}=await supabase
       .from('quiz_attempts')
       .select('score,completed_at,quizzes(title)')
-      .eq('student_id',omar.id)
+      .eq('student_id',student.id)
       .order('completed_at',{ascending:false})
       .limit(5)
 
@@ -965,11 +973,12 @@ function Quizzes(){
     setSaving(true)
 
     try{
-      const [{data:omar,error:studentError},{data:quiz,error:quizError}]=await Promise.all([
+      const [{data:student,error:studentError},{data:quiz,error:quizError}]=await Promise.all([
         supabase
           .from('profiles')
           .select('id')
-          .eq('full_name','Omar Mohamed')
+          .eq('full_name',studentName)
+          .eq('role','student')
           .single(),
 
         supabase
@@ -985,7 +994,7 @@ function Quizzes(){
       const {error}=await supabase
         .from('quiz_attempts')
         .insert({
-          student_id:omar.id,
+          student_id:student.id,
           quiz_id:quiz.id,
           score,
           answers:{
@@ -1007,7 +1016,7 @@ function Quizzes(){
                 'Content-Type':'application/json'
               },
               body:JSON.stringify({
-                student_name:'Omar Mohamed',
+                student_name:studentName,
                 score,
                 weak_topic:'Cell biology'
               })
@@ -1035,7 +1044,7 @@ function Quizzes(){
   return <>
     <PageTitle
       title="Quizzes"
-      text="Adaptive checkpoints that feed your weak-topic analysis."
+      text={'Adaptive checkpoint for '+studentName+' that feeds the weak-topic analysis.'}
     />
 
     {improvement&&
@@ -2359,9 +2368,14 @@ export default function App(){
   : page==='courses'
     ? <Courses data={data}/>
   : page==='tutor'
-    ? <Tutor initialPrompt={tutorPrompt}/>
+    ? <Tutor
+        initialPrompt={tutorPrompt}
+        studentName={demoStudentName}
+      />
   : page==='quizzes'
-    ? <Quizzes/>:page==='analytics'?<StudentAnalytics/>:<Achievements/>}return page==='dashboard'?<TeacherDashboard/>:page==='students'?<TeacherStudents/>:page==='content'?<TeacherContent data={data}/>:page==='analytics'?<TeacherAnalytics/>:page==='automation'?<Automation/>:<Announcements/>}
+    ? <Quizzes
+        studentName={demoStudentName}
+      />:page==='analytics'?<StudentAnalytics/>:<Achievements/>}return page==='dashboard'?<TeacherDashboard/>:page==='students'?<TeacherStudents/>:page==='content'?<TeacherContent data={data}/>:page==='analytics'?<TeacherAnalytics/>:page==='automation'?<Automation/>:<Announcements/>}
   return <div className="app"><aside><div className="brand"><div className="logo"><GraduationCap/></div><div><b>CourseAI</b><span>Learning OS</span></div></div><nav>{menu.map(([id,label,Icon])=><button key={id} className={page===id?'active':''} onClick={()=>setPage(id)}><Icon/>{label}</button>)}</nav><div className="demo-note"><Sparkles/><div><b>Interactive demo</b><span>Supabase-connected prototype</span></div></div></aside><main><header><div><b>Biology Academy</b><span>{loading?'Syncing demo data...':'Live demo data connected'}</span></div><div className="header-actions">
 
 {mode==='student'&&
