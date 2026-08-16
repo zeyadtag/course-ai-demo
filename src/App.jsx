@@ -1554,7 +1554,197 @@ function StudentAnalytics({studentName='Omar Mohamed'}){
   </>
 }
 
-function Achievements(){return <><PageTitle title="Achievements" text="Streaks, XP and milestones designed to keep momentum high."/><div className="achievement-grid">{[['🔥','12 Day Streak','Study 12 days in a row','Unlocked'],['🏆','Quiz Master','Score 90%+ on 3 quizzes','2 / 3'],['🚀','Fast Starter','Complete your first module','Unlocked'],['🧠','DNA Specialist','Reach 85% mastery in DNA','63%'],['⭐','Top 10%','Reach top 10% of cohort','18%']].map(a=><Card key={a[1]} className="achievement"><div className="emoji">{a[0]}</div><b>{a[1]}</b><p>{a[2]}</p><Badge type={a[3]==='Unlocked'?'green':'blue'}>{a[3]}</Badge></Card>)}</div></>}
+function Achievements({studentName='Omar Mohamed'}){
+
+  const [stats,setStats]=useState({
+    points:0,
+    streak:0,
+    progress:0,
+    quizCount:0,
+    highScores:0,
+    bestScore:0
+  })
+
+  const [loading,setLoading]=useState(true)
+
+  useEffect(()=>{
+    loadAchievements()
+  },[studentName])
+
+  async function loadAchievements(){
+    setLoading(true)
+
+    const {data:student,error:studentError}=await supabase
+      .from('profiles')
+      .select('id,points,streak')
+      .eq('full_name',studentName)
+      .eq('role','student')
+      .maybeSingle()
+
+    if(studentError || !student){
+      if(studentError) console.error(studentError)
+      setLoading(false)
+      return
+    }
+
+    const [
+      {data:enrollment,error:enrollmentError},
+      {data:attempts,error:attemptError}
+    ]=await Promise.all([
+
+      supabase
+        .from('enrollments')
+        .select('progress')
+        .eq('student_id',student.id)
+        .limit(1)
+        .maybeSingle(),
+
+      supabase
+        .from('quiz_attempts')
+        .select('score')
+        .eq('student_id',student.id)
+
+    ])
+
+    if(enrollmentError) console.error(enrollmentError)
+    if(attemptError) console.error(attemptError)
+
+    const rows=attempts||[]
+
+    const highScores=
+      rows.filter(
+        row=>Number(row.score||0)>=90
+      ).length
+
+    const bestScore=
+      rows.length
+        ? Math.max(
+            ...rows.map(
+              row=>Number(row.score||0)
+            )
+          )
+        : 0
+
+    setStats({
+      points:Number(student.points||0),
+      streak:Number(student.streak||0),
+      progress:Number(enrollment?.progress||0),
+      quizCount:rows.length,
+      highScores,
+      bestScore
+    })
+
+    setLoading(false)
+  }
+
+  const achievements=[
+    {
+      emoji:'🔥',
+      title:'Study Streak',
+      description:'Maintain a consistent learning streak.',
+      value:loading
+        ? '...'
+        : stats.streak+' days',
+      unlocked:stats.streak>=7
+    },
+    {
+      emoji:'🏆',
+      title:'Quiz Master',
+      description:'Score 90%+ on 3 quizzes.',
+      value:loading
+        ? '...'
+        : stats.highScores+' / 3',
+      unlocked:stats.highScores>=3
+    },
+    {
+      emoji:'🚀',
+      title:'Course Explorer',
+      description:'Reach at least 25% course progress.',
+      value:loading
+        ? '...'
+        : stats.progress+'%',
+      unlocked:stats.progress>=25
+    },
+    {
+      emoji:'🎯',
+      title:'High Scorer',
+      description:'Reach a 90% best quiz score.',
+      value:loading
+        ? '...'
+        : stats.bestScore+'%',
+      unlocked:stats.bestScore>=90
+    },
+    {
+      emoji:'⭐',
+      title:'XP Builder',
+      description:'Earn 1000 XP points.',
+      value:loading
+        ? '...'
+        : stats.points+' XP',
+      unlocked:stats.points>=1000
+    }
+  ]
+
+  return <>
+    <PageTitle
+      title="Achievements"
+      text={'Live milestones and learning progress for '+studentName+'.'}
+    />
+
+    <div className="stats">
+      <Stat
+        icon={Trophy}
+        value={loading?'...':stats.points}
+        label="XP points"
+      />
+
+      <Stat
+        icon={Flame}
+        value={loading?'...':stats.streak+'d'}
+        label="Study streak"
+      />
+
+      <Stat
+        icon={Target}
+        value={loading?'...':stats.progress+'%'}
+        label="Course progress"
+      />
+
+      <Stat
+        icon={ListChecks}
+        value={loading?'...':stats.quizCount}
+        label="Quiz attempts"
+      />
+    </div>
+
+    <div className="achievement-grid">
+      {achievements.map(item=>
+        <Card
+          key={item.title}
+          className="achievement"
+        >
+          <div className="emoji">
+            {item.emoji}
+          </div>
+
+          <b>{item.title}</b>
+
+          <p>{item.description}</p>
+
+          <Badge type={
+            item.unlocked
+              ? 'green'
+              : 'blue'
+          }>
+            {item.unlocked
+              ? 'Unlocked · '+item.value
+              : item.value}
+          </Badge>
+        </Card>
+      )}
+    </div>
+  </>
+}
 
 function TeacherDashboard(){
   const [materialTitle,setMaterialTitle]=useState('')
@@ -2742,7 +2932,9 @@ export default function App(){
     ? <StudentAnalytics
         studentName={demoStudentName}
       />
-    : <Achievements/>}return page==='dashboard'?<TeacherDashboard/>:page==='students'?<TeacherStudents/>:page==='content'?<TeacherContent data={data}/>:page==='analytics'?<TeacherAnalytics/>:page==='automation'?<Automation/>:<Announcements/>}
+    : <Achievements
+        studentName={demoStudentName}
+      />}return page==='dashboard'?<TeacherDashboard/>:page==='students'?<TeacherStudents/>:page==='content'?<TeacherContent data={data}/>:page==='analytics'?<TeacherAnalytics/>:page==='automation'?<Automation/>:<Announcements/>}
   return <div className="app"><aside><div className="brand"><div className="logo"><GraduationCap/></div><div><b>CourseAI</b><span>Learning OS</span></div></div><nav>{menu.map(([id,label,Icon])=><button key={id} className={page===id?'active':''} onClick={()=>setPage(id)}><Icon/>{label}</button>)}</nav><div className="demo-note"><Sparkles/><div><b>Interactive demo</b><span>Supabase-connected prototype</span></div></div></aside><main><header><div><b>Biology Academy</b><span>{loading?'Syncing demo data...':'Live demo data connected'}</span></div><div className="header-actions">
 
 {mode==='student'&&
