@@ -259,7 +259,8 @@ function StudentDashboard({data,setPage,setTutorPrompt}){
     quizAverage:0,
     weakTopic:'General review',
     points:0,
-    streak:0
+    streak:0,
+    daysInactive:0
   })
 
   useEffect(()=>{
@@ -292,7 +293,7 @@ function StudentDashboard({data,setPage,setTutorPrompt}){
 
       supabase
         .from('enrollments')
-        .select('progress')
+        .select('progress,last_activity_at')
         .eq('student_id',profile.id)
         .limit(1)
         .maybeSingle(),
@@ -330,12 +331,29 @@ function StudentDashboard({data,setPage,setTutorPrompt}){
         row=>row.weak_topics||[]
       ).filter(Boolean)[0] || 'General review'
 
+    const lastActivity=
+      enrollment?.last_activity_at
+        ? new Date(enrollment.last_activity_at)
+        : null
+
+    const daysInactive=
+      lastActivity
+        ? Math.max(
+            0,
+            Math.floor(
+              (Date.now()-lastActivity.getTime())/
+              86400000
+            )
+          )
+        : 0
+
     setLiveStudentStats({
       progress:Number(enrollment?.progress||0),
       quizAverage,
       weakTopic,
       points:Number(profile.points||0),
-      streak:Number(profile.streak||0)
+      streak:Number(profile.streak||0),
+      daysInactive
     })
   }
 
@@ -708,7 +726,54 @@ function StudentDashboard({data,setPage,setTutorPrompt}){
     </div>
     <div className="grid two"><Card><SectionHead eyebrow="Continue learning" title={data.course.title} icon={BookOpen}/><Progress value={liveStudentStats.progress}/><p className="muted">{liveStudentStats.progress}% complete · {data.lessons.length} lessons available</p><div className="lesson-list">{data.lessons.map((l,i)=><button className="lesson" key={l.id} onClick={()=>setPage('courses')}><div className="lesson-num">{i+1}</div><div className="grow"><b>{l.title}</b><span>{l.summary}</span></div><span className="duration">{l.duration_minutes} min</span><PlayCircle size={20}/></button>)}</div></Card>
     <Card><SectionHead eyebrow="AI generated" title="Today's study plan" icon={ListChecks}/>{data.plan.map((t,i)=><div className="task" key={i}><div><b>{t.task}</b><span>{t.day} · {t.minutes} min</span></div><CheckCircle2 size={20}/></div>)}</Card></div>
-    <div className="grid three"><Card><SectionHead eyebrow="Weak topic" title={liveStudentStats.weakTopic} icon={CircleAlert}/><p className="muted">Based on your latest quiz performance and recorded weak topics.</p><button className="primary" onClick={()=>setPage('tutor')}>Ask AI Tutor</button></Card><Card><SectionHead eyebrow="Next milestone" title="Quiz Master" icon={Trophy}/><p className="muted">Score 90%+ in two more quizzes to unlock 500 XP.</p><Progress value={67}/></Card><Card><SectionHead eyebrow="Upcoming" title="Weekly biology challenge" icon={CalendarDays}/><p className="muted">Saturday · 8:00 PM · 20 questions</p><Badge type="blue">Starts in 2 days</Badge></Card></div>
+    <div className="grid three"><Card><SectionHead eyebrow="Weak topic" title={liveStudentStats.weakTopic} icon={CircleAlert}/><p className="muted">Based on your latest quiz performance and recorded weak topics.</p><button className="primary" onClick={()=>setPage('tutor')}>Ask AI Tutor</button></Card><Card>
+      <SectionHead
+        eyebrow="Learning momentum"
+        title="Current progress"
+        icon={Trophy}
+      />
+
+      <p className="muted">
+        Course completion based on your live enrollment record.
+      </p>
+
+      <Progress value={liveStudentStats.progress}/>
+
+      <Badge type="green">
+        {liveStudentStats.progress}% complete
+      </Badge>
+    </Card>
+
+    <Card>
+      <SectionHead
+        eyebrow="Engagement"
+        title="Activity status"
+        icon={CalendarDays}
+      />
+
+      <p className="muted">
+        {liveStudentStats.daysInactive===0
+          ? 'Active today.'
+          : 'Last active '+liveStudentStats.daysInactive+
+            ' day'+
+            (liveStudentStats.daysInactive===1?'':'s')+
+            ' ago.'}
+      </p>
+
+      <Badge type={
+        liveStudentStats.daysInactive>=5
+          ? 'red'
+          : liveStudentStats.daysInactive>=3
+            ? 'blue'
+            : 'green'
+      }>
+        {liveStudentStats.daysInactive>=5
+          ? 'Inactive'
+          : liveStudentStats.daysInactive>=3
+            ? 'Monitor'
+            : 'Active'}
+      </Badge>
+    </Card></div>
 
     {revisionPlan&&
       <Card className="revision-plan-card">
@@ -2219,7 +2284,7 @@ function TeacherStudents(){
       text={
         live
           ? 'Live student performance from Supabase.'
-          : 'Student performance demo data.'
+          : 'Student performance data.'
       }
     />
 
@@ -2279,7 +2344,7 @@ function TeacherStudents(){
         {
           live
             ? 'Live data'
-            : 'Demo data'
+            : 'Fallback data'
         }
 
       </Badge>
@@ -2935,7 +3000,7 @@ export default function App(){
     : <Achievements
         studentName={demoStudentName}
       />}return page==='dashboard'?<TeacherDashboard/>:page==='students'?<TeacherStudents/>:page==='content'?<TeacherContent data={data}/>:page==='analytics'?<TeacherAnalytics/>:page==='automation'?<Automation/>:<Announcements/>}
-  return <div className="app"><aside><div className="brand"><div className="logo"><GraduationCap/></div><div><b>CourseAI</b><span>Learning OS</span></div></div><nav>{menu.map(([id,label,Icon])=><button key={id} className={page===id?'active':''} onClick={()=>setPage(id)}><Icon/>{label}</button>)}</nav><div className="demo-note"><Sparkles/><div><b>Interactive demo</b><span>Supabase-connected prototype</span></div></div></aside><main><header><div><b>Biology Academy</b><span>{loading?'Syncing demo data...':'Live demo data connected'}</span></div><div className="header-actions">
+  return <div className="app"><aside><div className="brand"><div className="logo"><GraduationCap/></div><div><b>CourseAI</b><span>AI Learning System</span></div></div><nav>{menu.map(([id,label,Icon])=><button key={id} className={page===id?'active':''} onClick={()=>setPage(id)}><Icon/>{label}</button>)}</nav><div className="demo-note"><Sparkles/><div><b>CourseAI Platform</b><span>Supabase + n8n connected</span></div></div></aside><main><header><div><b>Biology Academy</b><span>{loading?'Syncing live data...':'Live data connected'}</span></div><div className="header-actions">
 
 {mode==='student'&&
   <div className="student-demo-switch">
