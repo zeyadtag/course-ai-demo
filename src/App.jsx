@@ -1443,7 +1443,7 @@ function TeacherDashboard(){
   const [action,setAction]=useState(null)
   const riskStudents=
     liveStudents
-      .filter(s=>s.risk>=55)
+      .filter(s=>s.risk>=70)
       .sort((a,b)=>b.risk-a.risk)
   function runAction(student,type){setAction({student,type})}
   return <>
