@@ -1293,7 +1293,266 @@ function Quizzes({studentName='Omar Mohamed'}){
   </>
 }
 
-function StudentAnalytics(){return <><PageTitle title="Analytics" text="Your learning patterns, strengths and weak topics."/><div className="stats"><Stat icon={BarChart3} value="+12%" label="Progress growth"/><Stat icon={Target} value="86%" label="Accuracy"/><Stat icon={Clock3} value="6.4h" label="Study time / 30d"/><Stat icon={Flame} value="12" label="Current streak"/></div><div className="grid two"><Card><SectionHead eyebrow="Topic mastery" title="Where you stand" icon={Target}/>{[['Cell structure',91],['Human physiology',82],['DNA transcription',63],['Protein synthesis',69]].map(([n,v])=><div className="bar-row" key={n}><span>{n}</span><Progress value={v}/><b>{v}%</b></div>)}</Card><Card><SectionHead eyebrow="AI insight" title="Best next action" icon={Brain}/><div className="insight"><Sparkles/><div><b>Spend 25 minutes on DNA transcription today.</b><p>You are likely to gain the most score improvement by reviewing transcription before taking another hard quiz.</p></div></div><div className="insight"><Clock3/><div><b>Your best study window is 7–9 PM.</b><p>Your recent completion rate is highest during this period.</p></div></div></Card></div></>}
+function StudentAnalytics({studentName='Omar Mohamed'}){
+
+  const [stats,setStats]=useState({
+    progress:0,
+    average:0,
+    attempts:0,
+    weakTopic:'General review',
+    lastScore:null,
+    bestScore:null,
+    daysInactive:0
+  })
+
+  const [attempts,setAttempts]=useState([])
+  const [loading,setLoading]=useState(true)
+
+  useEffect(()=>{
+    loadAnalytics()
+  },[studentName])
+
+  async function loadAnalytics(){
+    setLoading(true)
+
+    const {data:student,error:studentError}=await supabase
+      .from('profiles')
+      .select('id')
+      .eq('full_name',studentName)
+      .eq('role','student')
+      .maybeSingle()
+
+    if(studentError || !student){
+      if(studentError) console.error(studentError)
+      setLoading(false)
+      return
+    }
+
+    const [
+      {data:enrollment,error:enrollmentError},
+      {data:quizRows,error:quizError}
+    ]=await Promise.all([
+
+      supabase
+        .from('enrollments')
+        .select('progress,last_activity_at')
+        .eq('student_id',student.id)
+        .limit(1)
+        .maybeSingle(),
+
+      supabase
+        .from('quiz_attempts')
+        .select('score,weak_topics,completed_at,quizzes(title)')
+        .eq('student_id',student.id)
+        .order('completed_at',{ascending:false})
+
+    ])
+
+    if(enrollmentError) console.error(enrollmentError)
+    if(quizError) console.error(quizError)
+
+    const rows=quizRows||[]
+
+    const average=
+      rows.length
+        ? Math.round(
+            rows.reduce(
+              (sum,row)=>sum+Number(row.score||0),
+              0
+            )/rows.length
+          )
+        : 0
+
+    const bestScore=
+      rows.length
+        ? Math.max(
+            ...rows.map(row=>Number(row.score||0))
+          )
+        : null
+
+    const lastScore=
+      rows.length
+        ? Number(rows[0].score||0)
+        : null
+
+    const topicCounts={}
+
+    rows.forEach(row=>{
+      ;(row.weak_topics||[]).forEach(topic=>{
+        if(!topic) return
+        topicCounts[topic]=(topicCounts[topic]||0)+1
+      })
+    })
+
+    const weakTopic=
+      Object.entries(topicCounts)
+        .sort((a,b)=>b[1]-a[1])[0]?.[0]
+      || 'General review'
+
+    const lastActivity=
+      enrollment?.last_activity_at
+        ? new Date(enrollment.last_activity_at)
+        : null
+
+    const daysInactive=
+      lastActivity
+        ? Math.max(
+            0,
+            Math.floor(
+              (Date.now()-lastActivity.getTime())/
+              86400000
+            )
+          )
+        : 0
+
+    setStats({
+      progress:Number(enrollment?.progress||0),
+      average,
+      attempts:rows.length,
+      weakTopic,
+      lastScore,
+      bestScore,
+      daysInactive
+    })
+
+    setAttempts(rows.slice(0,5))
+    setLoading(false)
+  }
+
+  return <>
+    <PageTitle
+      title="Analytics"
+      text={'Live learning analytics for '+studentName+'.'}
+    />
+
+    <div className="stats">
+      <Stat
+        icon={BarChart3}
+        value={loading?'...':stats.progress+'%'}
+        label="Course progress"
+      />
+
+      <Stat
+        icon={Target}
+        value={loading?'...':stats.average+'%'}
+        label="Quiz average"
+      />
+
+      <Stat
+        icon={ListChecks}
+        value={loading?'...':stats.attempts}
+        label="Quiz attempts"
+      />
+
+      <Stat
+        icon={Clock3}
+        value={loading?'...':stats.daysInactive+'d'}
+        label="Since last activity"
+      />
+    </div>
+
+    <div className="grid two">
+
+      <Card>
+        <SectionHead
+          eyebrow="Learning signal"
+          title="Performance summary"
+          icon={Brain}
+        />
+
+        <div className="detail-note">
+          <CircleAlert size={17}/>
+          <div>
+            <b>Current weak topic</b>
+            <p>{stats.weakTopic}</p>
+          </div>
+        </div>
+
+        <div className="detail-note">
+          <Target size={17}/>
+          <div>
+            <b>Latest quiz score</b>
+            <p>
+              {stats.lastScore!==null
+                ? stats.lastScore+'%'
+                : 'No attempt yet'}
+            </p>
+          </div>
+        </div>
+
+        <div className="detail-note">
+          <Trophy size={17}/>
+          <div>
+            <b>Best quiz score</b>
+            <p>
+              {stats.bestScore!==null
+                ? stats.bestScore+'%'
+                : 'No attempt yet'}
+            </p>
+          </div>
+        </div>
+
+        <Badge type={
+          stats.average>=75
+            ? 'green'
+            : stats.average>=65
+              ? 'blue'
+              : 'red'
+        }>
+          {stats.average>=75
+            ? 'Strong performance'
+            : stats.average>=65
+              ? 'Needs monitoring'
+              : 'Needs support'}
+        </Badge>
+      </Card>
+
+      <Card>
+        <SectionHead
+          eyebrow="Live history"
+          title="Recent quiz performance"
+          icon={BarChart3}
+        />
+
+        {loading ?
+          <p className="muted">
+            Loading performance...
+          </p>
+        :
+          attempts.length===0 ?
+            <p className="muted">
+              No quiz attempts recorded.
+            </p>
+          :
+            attempts.map((attempt,index)=>
+              <div
+                className="result-row"
+                key={index}
+              >
+                <div>
+                  <b>
+                    {attempt.quizzes?.title||
+                     'Quiz attempt'}
+                  </b>
+
+                  <span>
+                    {new Date(
+                      attempt.completed_at
+                    ).toLocaleDateString()}
+                  </span>
+                </div>
+
+                <strong>
+                  {Number(attempt.score)}%
+                </strong>
+              </div>
+            )
+        }
+      </Card>
+
+    </div>
+  </>
+}
 
 function Achievements(){return <><PageTitle title="Achievements" text="Streaks, XP and milestones designed to keep momentum high."/><div className="achievement-grid">{[['🔥','12 Day Streak','Study 12 days in a row','Unlocked'],['🏆','Quiz Master','Score 90%+ on 3 quizzes','2 / 3'],['🚀','Fast Starter','Complete your first module','Unlocked'],['🧠','DNA Specialist','Reach 85% mastery in DNA','63%'],['⭐','Top 10%','Reach top 10% of cohort','18%']].map(a=><Card key={a[1]} className="achievement"><div className="emoji">{a[0]}</div><b>{a[1]}</b><p>{a[2]}</p><Badge type={a[3]==='Unlocked'?'green':'blue'}>{a[3]}</Badge></Card>)}</div></>}
 
@@ -2479,7 +2738,11 @@ export default function App(){
   : page==='quizzes'
     ? <Quizzes
         studentName={demoStudentName}
-      />:page==='analytics'?<StudentAnalytics/>:<Achievements/>}return page==='dashboard'?<TeacherDashboard/>:page==='students'?<TeacherStudents/>:page==='content'?<TeacherContent data={data}/>:page==='analytics'?<TeacherAnalytics/>:page==='automation'?<Automation/>:<Announcements/>}
+      />:page==='analytics'
+    ? <StudentAnalytics
+        studentName={demoStudentName}
+      />
+    : <Achievements/>}return page==='dashboard'?<TeacherDashboard/>:page==='students'?<TeacherStudents/>:page==='content'?<TeacherContent data={data}/>:page==='analytics'?<TeacherAnalytics/>:page==='automation'?<Automation/>:<Announcements/>}
   return <div className="app"><aside><div className="brand"><div className="logo"><GraduationCap/></div><div><b>CourseAI</b><span>Learning OS</span></div></div><nav>{menu.map(([id,label,Icon])=><button key={id} className={page===id?'active':''} onClick={()=>setPage(id)}><Icon/>{label}</button>)}</nav><div className="demo-note"><Sparkles/><div><b>Interactive demo</b><span>Supabase-connected prototype</span></div></div></aside><main><header><div><b>Biology Academy</b><span>{loading?'Syncing demo data...':'Live demo data connected'}</span></div><div className="header-actions">
 
 {mode==='student'&&
